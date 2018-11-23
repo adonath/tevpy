@@ -518,13 +518,13 @@ further tweak/customize the image.
 
 .. code:: python
 
+    import numpy as np
     import matplotlib.pyplot as plt
     from gammapy.maps import Map
-    from gammapy.maps.utils import fill_poisson
 
     m = Map.create(binsz=0.1, map_type='wcs', width=10.0)
-    fill_poisson(m, mu=1.0, random_state=0)
-    m.plot(cmap='magma')
+    m.data = np.random.poisson(lam=1, size=m.data.shape)
+    m.plot(cmap='magma', add_cbar=True)
     plt.show()
 
 

@@ -10,7 +10,6 @@ import astropy.units as u
 from ...utils.testing import requires_dependency, requires_data, mpl_plot_check
 from ...cube import PSFKernel
 from ...irf import EnergyDependentMultiGaussPSF
-from ..utils import fill_poisson
 from ..geom import MapAxis, MapCoord, coordsys_to_frame
 from ..base import Map
 from ..wcs import WcsGeom
@@ -69,7 +68,8 @@ def test_wcsndmap_read_write(tmpdir, npix, binsz, coordsys, proj, skydir, axes):
     filename = str(tmpdir / "map.fits")
 
     m0 = WcsNDMap(geom)
-    fill_poisson(m0, mu=0.5)
+    m0.data += np.arange(m0.data.size, dtype=float).reshape(m0.data.shape)
+
     m0.write(filename, overwrite=True)
     m1 = WcsNDMap.read(filename)
     m2 = Map.read(filename)

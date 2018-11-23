@@ -7,7 +7,6 @@ from astropy.io import fits
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from ...utils.testing import mpl_plot_check, requires_dependency
-from ..utils import fill_poisson
 from ..geom import MapAxis, coordsys_to_frame
 from ..base import Map
 from ..hpx import HpxGeom
@@ -96,7 +95,8 @@ def test_hpxmap_read_write(tmpdir, nside, nested, coordsys, region, axes, sparse
     filename = str(tmpdir / "map.fits")
 
     m = create_map(nside, nested, coordsys, region, axes, sparse)
-    fill_poisson(m, mu=0.5, random_state=0)
+    if not sparse:
+        m.data += np.arange(m.data.size, dtype=float).reshape(m.data.shape)
     m.write(filename, sparse=sparse, overwrite=True)
 
     m2 = HpxNDMap.read(filename)
@@ -262,7 +262,7 @@ def test_hpxmap_swap_scheme(nside, nested, coordsys, region, axes):
     m = HpxNDMap(
         HpxGeom(nside=nside, nest=nested, coordsys=coordsys, region=region, axes=axes)
     )
-    fill_poisson(m, mu=1.0, random_state=0)
+    m.data += np.arange(m.data.size, dtype=float).reshape(m.data.shape)
     m2 = m.to_swapped()
     coords = m.geom.get_coord(flat=True)
     assert_allclose(m.get_by_coord(coords), m2.get_by_coord(coords))
