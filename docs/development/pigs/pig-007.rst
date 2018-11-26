@@ -1,0 +1,108 @@
+.. include:: ../../references.txt
+
+.. _pig-007:
+
+*********************************************
+PIG 7 - Modeling and Joint Likelihood Fitting
+*********************************************
+
+* Author: Axel Donath
+* Created: Nov 26, 2018
+* Accepted:
+* Status:
+* Discussion:
+
+Abstract
+========
+
+
+What we have
+============
+
+
+Proposal
+========
+
+* `SkyModelIRF`: a "forward folded" model, that applies IRFs to a `SkyModel`
+instance and returns an integrated quantity corresponding to predicted counts.
+It can only be evaluated on a fixed grid, passed on input. It is basically, what
+the current `ModelEvaluator` does now, but with the model parameters attached.
+
+* `BackgroundModel`: already integrated model, with fixed binning. It is
+initialized with a background map and introduces additional background parameters,
+such as `norm` or `tilt`. This model generic and not specific to 1D, 2D or 3D data.
+
+* `NPredModel`: combines a list of `SkyModelIRF` and / or `BackgroundModel` and
+joins the parameters lists and sums up the contributions from all model components
+in the list. This model generic and not specific to 1D, 2D or 3D data.
+
+* `Likelihood`: takes the binned data and model, updates the parameters and
+re-evaluates the model on every iteration of the fit. For different fit
+statistics sub-classes such as `CashLikelihood`, `WStatLikelihood` or
+`Chi2Likelihood` are introduced. This object is passed to the `Fit` object
+
+* `JointLikelihood`: takes a list of `Likelihood` objects, joins the parameter
+lists and computes the joint likelihood. This object is passed to the `Fit` object.
+
+
+Short term this code structure solves many uses cases without the introduction
+of `Datasets` and also replaces the current `MapFit`, as well as `FluxPointFit`
+and possibly `SpectrumFit` classes. Long-term we might re-introduce convenience
+classes, specific to certain tasks.
+
+The use cases that can be solved with the proposed structure are listed below:
+
+Currently
+
+
+
+
+- The `CompoundSkyModel` is a nice very generic abstraction to support any
+kind of arithmetics between `SkyModel`, but the number of use cases for any operator,
+except for `+` is very limited and can always be achieved by implemting a custom model.
+I/O and component handling of this hierachical model component structure is
+intrisically difficult. For this reason it is favorable to first support and
+improve the existing `SkyModels` that implements an easier to handle flat hierachy
+for model components. Support for model arbitrary arithmetics can even be introduced
+after Gammapy 1.0.
+
+
+- Support model names for `SkyModel`
+
+```
+from gammapy.cube import SkyModel, SkyModels
+
+component_1 = SkyModel("source_1")
+component_2 = SkyModel("source_2")
+
+total_model = SkyModel([component_1, component_2])
+
+total_model["source_1"].parameters["index"] = 2.3
+del model["source_2"]
+```
+
+Break down the work into the following list of PRs:
+
+
+Improvements to the model framework:
+- Remove the `CompoundSkyModel` and reimplement the `+` operator using the `SkyModels`
+class. Possibly remove the `SpectralCompoundModel` for consistency.
+- Support model names, so that components of a larger model can be accessed by name.
+- Fix existing XML I/O for `SkyModels` and add a protoype yaml I/O
+- Add default parameter values to spatial models and sky models.
+
+
+
+
+
+Alternatives
+============
+
+
+Decision
+========
+
+
+
+.. _gammapy: https://github.com/gammapy/gammapy
+.. _gammapy-web: https://github.com/gammapy/gammapy-webpage
