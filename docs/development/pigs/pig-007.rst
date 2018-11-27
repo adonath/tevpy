@@ -15,9 +15,26 @@ PIG 7 - Modeling and Joint Likelihood Fitting
 Abstract
 ========
 
+TBD
 
 What we have
 ============
+
+`MapFit`: class to perform a binned likelihood fit taking a model and IRFs. Does not support fitting of background models, does not support IRFs pers model component and it does not support joint-likelihood fitting.
+
+`MapEvaluator`: class to bundle a sky model and IRFs as well as exposure. Computes predicted number of counts. Does not support IRFs per model component.
+
+`SpectrumFit`
+
+`Fit`: unified fitting interface
+
+`SkyModel`: parametric, arithmetic model
+
+`SkyModels`:
+
+`CompoundSkyModel`
+
+
 
 
 Proposal
@@ -39,10 +56,11 @@ in the list. This model generic and not specific to 1D, 2D or 3D data.
 * `Likelihood`: takes the binned data and model, updates the parameters and
 re-evaluates the model on every iteration of the fit. For different fit
 statistics sub-classes such as `CashLikelihood`, `WStatLikelihood` or
-`Chi2Likelihood` are introduced. This object is passed to the `Fit` object
+`Chi2Likelihood` are introduced. This object is passed to the current `Fit` object
 
 * `JointLikelihood`: takes a list of `Likelihood` objects, joins the parameter
-lists and computes the joint likelihood. This object is passed to the `Fit` object.
+lists and computes the joint likelihood. This object can be passed to the
+`Fit` object as well.
 
 
 Short term this code structure solves many uses cases without the introduction
@@ -54,46 +72,72 @@ The use cases that can be solved with the proposed structure are listed below:
 
 Currently
 
-
-
-
 - The `CompoundSkyModel` is a nice very generic abstraction to support any
-kind of arithmetics between `SkyModel`, but the number of use cases for any operator,
+kind of arithmetics between `SkyModel`, but the number of use cases for other operators,
 except for `+` is very limited and can always be achieved by implemting a custom model.
 I/O and component handling of this hierachical model component structure is
-intrisically difficult. For this reason it is favorable to first support and
+intrisically difficult. For this reason I propose to first support and
 improve the existing `SkyModels` that implements an easier to handle flat hierachy
 for model components. Support for model arbitrary arithmetics can even be introduced
 after Gammapy 1.0.
 
-
-- Support model names for `SkyModel`
+Remove the `CompoundSkyModel` and reimplement the `+` operator using the `SkyModels`
+class. Possibly remove the `SpectralCompoundModel` for consistency.
 
 ```
 from gammapy.cube import SkyModel, SkyModels
 
-component_1 = SkyModel("source_1")
-component_2 = SkyModel("source_2")
+component_1 = SkyModel()
+component_2 = SkyModel()
 
-total_model = SkyModel([component_1, component_2])
+total_model = component_1  + component_2
+assert isinstance(total_model, SkyModels)
+
+# or equivalent
+
+total_model = SkyModels([component_1, component_2])
+```
+
+Add support for model component names:
+
+```
+from gammapy.cube import SkyModel, SkyModels
+
+component_1 = SkyModel(name="source_1")
+component_2 = SkyModel(name="source_2")
+
+total_model = SkyModels([component_1, component_2])
 
 total_model["source_1"].parameters["index"] = 2.3
+
+# or alternatively
+
+total_model.parameters["source_1.index"] = 2.3
+
 del model["source_2"]
 ```
 
-Break down the work into the following list of PRs:
+Fix the existing XML I/O and implement a prototype YAML I/O:
 
+```
+from gammapy.cube import SkyModels
 
-Improvements to the model framework:
-- Remove the `CompoundSkyModel` and reimplement the `+` operator using the `SkyModels`
-class. Possibly remove the `SpectralCompoundModel` for consistency.
-- Support model names, so that components of a larger model can be accessed by name.
-- Fix existing XML I/O for `SkyModels` and add a protoype yaml I/O
-- Add default parameter values to spatial models and sky models.
+total_model = SkyModel.read("model.xml")
+total_model.write("model.xml")
 
+total_model = SkyModel.read("model.yaml")
+total_model.write("model.yaml")
+```
 
+.. note::
 
+    The current suggestion of the gammalib/ctools XML format has the (hadronic)
+    background model definition as part of the XML. While this is convenient for the
+    user to have it in a single file, the model definition is incomplete in the sense,
+    that the background model is given for a corresponding set of IRFs, which are
+    **not** specified in the XML file.
 
+Default parameters or `SkySpatialModel` as well as `SkyModel` should be added.
 
 Alternatives
 ============
