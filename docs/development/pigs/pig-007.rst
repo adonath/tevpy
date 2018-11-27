@@ -15,7 +15,17 @@ PIG 7 - Modeling and Joint Likelihood Fitting
 Abstract
 ========
 
-TBD
+One of the most important features of Gammapy will be the modelling and fitting
+of gamma-ray data in 1D, 2D, 3D and combined joint-likelihood analysis scenarios.
+The joint-likelihood analysis scenario includes combinining 1D, 2D and 3D analyses,
+joint-fitting of multiple observations, time intervalls or event classes and
+combining data from different IACTs as well as combining IACT with Fermi-LAT or
+HAWC data. We propose the introduction of the concept of `Dataset` classes, which
+combine the reduced data per instrument observation, time intervall, event class etc.,
+with correspoding reduced IRFs, fit statistics and dataset specific models.
+Lihelihoods are then evaluated per dataset, mutliplied and passed to the fitting
+backend along with model parameters.
+
 
 What we have
 ============
