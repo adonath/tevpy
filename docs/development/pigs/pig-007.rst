@@ -2,75 +2,311 @@
 
 .. _pig-007:
 
-*********************************************
-PIG 7 - Modeling and Joint Likelihood Fitting
-*********************************************
+**********************************************
+PIG 7 - Modelling and Joint Likelihood Fitting
+**********************************************
 
-* Author: Axel Donath
+* Author: Axel Donath & Regis Terrier
 * Created: Nov 26, 2018
 * Accepted:
 * Status:
 * Discussion:
 
-Abstract
-========
 
-One of the most important features of Gammapy will be the modeling and fitting
+Introduction
+============
+
+One of the most important features of Gammapy v1.0 will be the modeling and fitting
 of gamma-ray data in 1D, 2D, 3D and combined joint-likelihood analysis scenarios.
 The joint-likelihood analysis scenario includes combining 1D, 2D and 3D analyses,
 stacked fitting of multiple observations, joint-fitting of multiple observations,
-time intervalls or event classes and combining data from different IACTs as well
-as combining IACT with Fermi-LAT or HAWC data. We propose the introduction of a
-new uniform modeling framework protype to enable joint-likelihood fitting in Gammapy.
-The proposal should be implemented for Gammapy v0.10 and v0.11) to enable the most
-frequent uses cases. The final design for Gammapy 1.0 is expected to change in 2019
-based on the experience from the protoype, developments in CTA, and also studying other
-designs (e.g. Fermi ST/Fermipy / pointlike, 3ML, Gammalib, Sherpa datastack).
+time intervals or event classes and combining data from different IACTs as well
+as combining IACT with Fermi-LAT or HAWC data. In this PIG we propose the introduction
+of a generalized modeling and fitting API that allows users to solve the
+aforementioned use cases with Gammapy. The proposal aims for a fast prototype
+implementation for Gammapy v0.11. The final design for Gammapy v1.0 is expected
+to change in 2019, based on the experience from the prototype, new developments
+in CTA and also studying the design of existing modeling and fitting packages.
 
 
 
-What we have
-============
+Status Quo
+==========
 
-`MapFit`: class to perform a binned likelihood fit taking a model and IRFs.
-Does not support fitting of background models, does not support IRFs per model
+Data preparation
+----------------
+To prepare the gamma-ray data for the modeling and fitting step there are currently
+two classes in Gammapy:
+
+**`MapMaker`**: class to compute stacked counts, background and exposure maps
+from a list of observations, given a fixed map geometry and offset cut. The
+result is a dictionary of `Map` objects.
+
+**`SpectrumExtraction`**: class to compute vectors of counts, background and
+effective area data for a list of observations. The results are bundled into
+a `SpectrumObservationList` object, containing a list of individual `SpectrumObservation`
+objects.
+
+Fitting
+-------
+Currently there are three classes in Gammapy to perform fitting:
+
+**`MapFit`**: class to perform a binned likelihood fit on map with spatial and energy
+axes. It takes a sky model, exposure, a background model and one set of IRFs. It does
+not support fitting of the background model, it does not support IRFs per model
 component and it does not support joint-likelihood fitting.
 
-`MapEvaluator`: class to bundle a sky model and IRFs as well as exposure.
-Computes predicted number of counts. Does not support IRFs per model component.
+**`FluxPointFit`**: class to fit spectral models to flux points. It does not support
+joint likelihood fitting.
 
-`SpectrumFit`:
+**`SpectrumFit`**: class to perform a spectral joint-likelihood fit of multiple
+observations.
 
-`FluxPointFit`: class to fit spectral models to flux points. No joint fit possible.
+In a first clean-up step a `Fit` base class was introduced, from which all the
+class inherit from. This `Fit` class implements a uniform interface to various
+fitting backends such as sherpa, iminuit and scipy.optimize. It also implements
+a common subset of helper methods such as error estimation and computation of
+likelihood profiles as well as likelihood contours.
 
-`SkyModel`: parametric, arithmetic model, improve
+Models and Model Evaluation
+---------------------------
+Furthermore there are the following related classes:
 
-`SkyModels`: extend and improve
+**`MapEvaluator`**: class to bundle a sky model, exposure, background and IRFs.
+It has the responsibility of computing applying the IRFs and adding the background
+model to compute the total number of predicted counts. It uses zero order integration,
+by mutipliying with the energy bin width. It does not support IRFs per model component.
 
-`CompoundSkyModel`: delete
+**`CountsPredictor`** class to bundle a spectral model, effective area, livetime
+and energy dispersion. It computes the predicted number of signal (without background)
+counts. It uses `SpectralModel.integrate()` to compute the flux.
 
-`Fit`: unified fitting interface, improve. Will be modified to take a `Likelihood`
-or `JointLikelihood` object on initialization.
+**`SkyModels`**: class that represents a list of `SkyModel` components. It is 
+evaluted with a Python loop over model components. It does not use bounding boxes
+for the evaluation.
 
+**`CompoundSkyModel`**: class that represents an arbitrary arithmetic combination of
+two `SkyModel` objects. The "+" operator is implemented by creating a `CompoundSkyModel`.
 
 
 Proposal
 ========
 
-Improvement of existing classes
--------------------------------
+Data Preparation
+----------------
 
-- The `CompoundSkyModel` is a nice very generic abstraction to support any
-kind of arithmetics between `SkyModel`, but the number of use cases for other operators,
-except for `+` is very limited and can always be achieved by implemting a custom model.
-I/O and component handling of this hierachical model component structure is
-intrisically difficult. For this reason I propose to first support and
-improve the existing `SkyModels` that implements an easier to handle flat hierachy
-for model components. Support for model arbitrary arithmetics can even be introduced
-after Gammapy 1.0.
+Already in the current design the data preparation and modeling steps are strictly
+separated. The data preparation is handled via the `MapMaker`, while the modeling
+is implemented via the `MapFit` class. The advantage of this separation is, that
+the modeling can be executed interactively, while the data preparation of many
+observations, which is computationally costly, can be done in advance. The disadvantage
+of the current design is that the map geometry for the counts, background and exposure
+maps as well as the offset-cut must be choosen during the data preparation step and
+cannot be modified later. The current `MapMaker` also computes only stacked maps
+by default. For this reason we propose to extend the current data preparation and
+make it more flexible in the following way:
 
-Remove the `CompoundSkyModel` and reimplement the `+` operator using the `SkyModels`
-class. Possibly remove the `SpectralCompoundModel` for consistency.
+**`ObservationMapEstimator`** or **`MapMaker`**: change the existing `MapMaker`
+to compute exposure, background, PSF and energy dispersion maps per observation
+and save them to disk. All quantities change only weakly with position, so a
+coarse spatial binning can be used to save storage space. Reasonable default
+map gemoetries could be defined, but user defined geometries are possible as well.
+Event lists are filtered and also written to disk. The `ObservationMapEstimator`
+defines either a `.stack(observations)` method to compute a stacked map across the given observations
+in a second step or the `.run()` method is extended with a `stack=True` argument,
+which computes the stacked map in addition. A separation into mutiple classes e.g.
+`CountsMapEstimator` and `IRFMapEstimator` might be reasonable.
+
+For the PSF there is already a `PSFMap` object, that holds pre-computed PSF kernels
+for all the positions in the sky map. We propose to introduce a `EDispMap` class,
+that provides the equivalent functionality for the energy dispersion matrix:
+
+**`EdispMap`**: map that holds pre-computed energy dispersion matrices for
+all the positions in the sky map. Defines a `.get_edisp_matrix(position=)` method,
+that interpolates the energy dispersion at an arbitrary position and returns an
+`EnergyDispersion` object.
+
+Modeling and Fitting
+--------------------
+
+As a first step for modeling and fitting the prepared data, the user chooses a
+map geometry and an offset-cut. If the user wants to perform a stacked analysis,
+the `MapMaker.stack(offset_max=)` method must be run first.
+
+**`MapDataset`** analysis session object, that "orchestrates" the setup and I/O
+of the precomputed observation maps, the counts map as well as the model. It holds
+the repsonsibility of computing the counts, predicted number of counts as well as
+the likelihood. In the `.setup()` method, the following preparation steps are
+executed:
+
+* Compute the counts map for the event lists and the given map geometry
+* Reproject the background maps on the given map geometry and create an instance
+of `BackgroundModel`
+* Setup a list of `ModelEvaluator` or `IRFSkyModel` insatnces for every component
+in the `SkyModels` object. For this the corresponding PSF and EDISP is extracted from
+the given `PSFMap` and `EDispMap`, based on the position of the model component.
+Then cutout a part of  the counts map geometry, based on the position of
+the model component and a ROI radius ("bounding box") it defines. Optionally the
+cut-out geometry is upsampled in space and energy (for energy the user might
+define an array of true energy in the `.setup()` call). The exposure map is
+reprojected on this geometry.
+
+The proposed workflow is as following:
+
+.. code::
+
+    ome = MapMaker(geom_coarse)
+    ome.run(observations, save_folder="observations/")
+
+    datasets = MapDatasets.read("observations/")
+    datasets.setup(geom=WcsGeom(), model=SkyModel(), offset_max=2.5 * u.deg, stack=False)
+
+    fit = Fit(datasets.likelihood)
+    fit.optimize()
+
+
+**`IRFSkyModel`** or **`ModelEvaluator`**: a "forward folded" model, that applies
+IRFs to a `SkyModel` instance and returns an integrated quantity corresponding
+to predicted counts. In the current proposal it can only be evaluated on a fixed grid,
+which passed on initialization given by the exposure map. Later the evaluation on arbitrary
+grids could be introduced. In addition it takes reduced PSF and EDISP objects.
+In functionality it corresponds to the current `MapEvaluator`, but with the
+model parameters attached. Additional "hidden" IRF parameters e.g. to propagate
+systematics could be optionally introduced later. This class will replace the current
+`MapEvaluator`. The `IRFSkyModel` can be initialized with a custom geometry, where
+the sky model is evaluated on.
+
+**`BackgroundModel`**: already integrated model, with fixed binning. It is initialized
+with a background map and introduces additional background parameters, such as `norm`
+and `tilt`. This model is evaluated on a fixed grid defined by the input map.
+
+**`Datasets`**: join a list of `MapDataset` objects and compute the joined likelihood
+across those.
+
+Optional Classes
+----------------
+The following optional classes could be introduced to distribute the responsibilities
+of the `MapDataset` accordingly:
+
+**`NPredModel`**: takes a list of instances of `IRFSkyModel` and / or `BackgroundModel`
+and joins the parameters lists and sums up the contributions from all model components
+in the list.
+
+
+Use cases
+=========
+With the proposed structure the following use cases can be addressed:
+
+1. Simple Stacked Fit
+---------------------
+
+.. code::
+
+    # coarse spatial binning for data preparation
+    geom = WcsGeom(binsz=0.2 * u.deg)
+    ome = ObservationMapEstimator(geom=geom, offset_max=2.5 * u.deg)
+
+    ome.run(observations, outfolder="")
+    # or
+    ome.run(observations, outfolder="", stack=True)
+
+    maps_stacked = ome.stack(infolder="", offset_max=2.5 * u.deg)
+
+    dataset = MapDataset.read()
+
+    sky_model = SkyModel()
+    geom_analysis = WcsGeom(binsz=0.02 * u.deg)
+    dataset.setup(geom=geom_analysis, model=sky_model)
+
+    fit = Fit(dataset)
+    fit.optimize()
+
+
+2. Joint Fit across Multiple Observations
+-----------------------------------------
+
+.. code::
+
+    # coarse spatial binning for data preparation
+    geom = WcsGeom(binsz=0.2 * u.deg)
+    ome = ObservationMapEstimator(geom=geom, offset_max=2.5 * u.deg)
+
+    ome.run(observations, outfolder="")
+    # or
+    ome.run(observations, outfolder="", stack=True)
+
+    maps_stacked = ome.stack(infolder="", offset_max=2.5 * u.deg)
+
+    dataset = MapDataset.read()
+
+    sky_model = SkyModel()
+    geom_analysis = WcsGeom(binsz=0.02 * u.deg)
+    dataset.setup(geom=geom_analysis, model=sky_model)
+
+    fit = Fit(dataset.likelihood)
+    fit.optimize()
+
+
+3. Joint Likelihood with Fermi
+------------------------------
+
+.. code::
+
+    sky_model = SkyModel()
+    model = IRFSkyModel(exposure_map, psf, edisp, sky_model)
+
+    diffuse_model = SkyCubeDiffuse.read()
+    model_fermi = IRFSkyModel(exposure_map_fermi, psf_fermi, edisp=None, sky_model + diffuse_model)
+
+    background = BackgroundModel(background_map)
+    npred = NPredModel([model, background])
+    npred_fermi = NPredModel([model_fermi])
+
+    like = CashLikelihood(counts_map_2, npred)
+    like_fermi = CashLikelihood(counts_fermi, npred_fermi)
+
+    joint_like = JointLikelihood([like, like_fermi])
+
+    fit = Fit(joint_like)
+    fit.optimize()
+
+
+
+5. Joint Likelihood with 3D and Flux Points
+-------------------------------------------
+
+.. code::
+
+    spectral_model = SpectralModel()
+    spatial_model = SpatialModel()
+
+    sky_model = SkyModel(spectral_model, spatial_model)
+
+    dataset = MapDataset.read("")
+    dataset.setup()
+
+    fp = FluxPoints.read("")
+    dataset_fp = FluxPointsDataset(fp, spectral_model, likelihood="chi2")
+
+    datasets = Datasets([dataset, dataset_fp])
+
+    fit = Fit(datasets.likelihood)
+    fit.optimize()
+
+
+Further Changes
+---------------
+
+**`CompoundSkyModel`**: the existing `CompoundSkyModel` is a nice very generic
+abstraction to support any kind of arithmetics between `SkyModel` objects, but
+the number of use cases for other operators, except for "+" is very limited and
+can always be achieved by implementing a custom model. I/O and component handling
+of this hierarchical model component structure is intrinsically difficult. For
+this reason we propose to first support and improve the existing `SkyModels` that
+implements an easier to handle flat hierarchy for model components. Support for
+arbitrary model arithmetics can be introduced, if needed, after Gammapy 1.0. We
+propose to remove the `CompoundSkyModel` and reimplement the `+` operator using
+the `SkyModels` class. Possibly remove the `SpectralCompoundModel` for consistency.
 
 .. code-block::
 
@@ -79,16 +315,19 @@ class. Possibly remove the `SpectralCompoundModel` for consistency.
     component_1 = SkyModel()
     component_2 = SkyModel()
 
-    total_model = component_1  + component_2
+    total_model = component_1 + component_2
     assert isinstance(total_model, SkyModels)
 
-    # or equivalent
+    # becomes quivalent to
 
     total_model = SkyModels([component_1, component_2])
 
-Add support for model component names:
+
+**`SkyModels`**: the existing `SkyModel` class should be improved to support model
+component names, such that the following example works:
 
 .. code-block::
+
     from gammapy.cube import SkyModel, SkyModels
 
     component_1 = SkyModel(name="source_1")
@@ -102,10 +341,16 @@ Add support for model component names:
 
     total_model.parameters["source_1.index"] = 2.3
 
+    # delete a model component in place
     del model["source_2"]
 
+This is also simplifies the parameter access in the fitting back-end, because
+parameter names become unique. E.g. no need for cryptic `par_00X_` parameter names
+in the minuit backend, which simplifies debugging and interaction by the user with
+methods such as `Fit.likelihood_profile()` or `Fit.confidence()`, where parameter
+identifiers must be given.
 
-Fix the existing XML I/O and implement a prototype YAML I/O:
+Fix the existing XML I/O on `SkyModel`and implement a prototype YAML I/O:
 
 .. code-block::
 
@@ -117,65 +362,78 @@ Fix the existing XML I/O and implement a prototype YAML I/O:
     total_model = SkyModel.read("model.yaml")
     total_model.write("model.yaml")
 
-.. note::
-
-    The current suggestion of the gammalib/ctools XML format has the (hadronic)
-    background model definition as part of the XML. While this is convenient for the
-    user to have it in a single file, the model definition is incomplete in the sense,
-    that the background model is given for a corresponding set of IRFs, which are
-    **not** specified in the XML file.
-
-Default parameters or `SkySpatialModel` as well as `SkyModel` should be added.
+**`Fit`**: the existing `Fit` class should be modified to take a `Dataset` or
+`Datasets` object on initialization. The likelihood object joins the data,
+model parameters and fit statisitics. This removes the need for sub-classing for
+`MapFit` and `SpectrumFit`.**`JointLikelihood`**: takes a list of `Likelihood` objects, joins the parameter
+lists and computes the joint likelihood.
 
 
-Introduction of new classes
----------------------------
-
-To complete the modeling and fitting framwork of Gammapy we propose to introduce
-the following new classes:
-
-
-* `IRFSkyModel`: a "forward folded" model, that applies IRFs to a `SkyModel`
-instance and returns an integrated quantity corresponding to predicted counts.
-In the current proposal it can only be evaluated on a fixed grid, which passed
-on initialization given by the exposure map. Later the evaluation on arbitrary
-grids could be introduced. In addition it takes reduced PSF and EDISP objects.
-In functionality it corresponds to the current `ModelEvaluator`, but with the
-model parameters attached. Additional "hidden" IRF parameters e.g. to propagate
-systematics could be optionally introduced later. This class will replace the current
-`ModelEvaluator`.
-
-* `BackgroundModel`: already integrated model, with fixed binning. It is
-initialized with a background map and introduces additional background parameters,
-such as `norm` or `tilt`. This model is evaluated on a fixed grid defined by the
-input map. Later evaluation on arbitrary grids could be introduced.
-
-* `NPredModel`: takes a list of instances of `SkyModelIRF` and / or `BackgroundModel`
-and joins the parameters lists and sums up the contributions from all model components
-in the list.
-
-* `Likelihood`: takes the binned data and model, updates the parameters and
-re-evaluates the model on every iteration of the fit. For different fit
-statistics sub-classes such as `CashLikelihood`, `WStatLikelihood` or
-`Chi2Likelihood` are introduced. This object is passed to the current `Fit` object
-
-* `JointLikelihood`: takes a list of `Likelihood` objects, joins the parameter
-lists and computes the joint likelihood. This object can be passed to the
-`Fit` object as well.
-
-* `Fit`:
-
-Short term this code structure solves many uses cases without the introduction
-of `Datasets` objects. It also replaces the current `MapFit`, as well as `FluxPointFit`
-and later possibly `SpectrumFit` classes. Mid-term we will introduce convenience
-classes to simplify the analyses.
+**`SpatialModel`**: implement support for coordinate systems. Add an interface
+for `SkyCoord`, by introducing a `SpatialModel.position` attribute. Add default
+parameter values. Add a `SpatialModel.roi_radius` attribute, that defines 
+the region the model is evaluated in.
 
 
-Use cases
-=========
-With the proposed structure following use cases can be solved:
+List of Pull Requests
+=====================
+
+This is proposal for a list of pull requests implementing the proposed changes.
+The following PRs could be implemented independently of each other:
+
+- Remove `CompoundSkyModel` and reimplement the "+" operator using `SkyModels`
+- Implement support for model component names in `SkyModels` and `SkyModel`
+- Fix existing XML I/O of `SkyModels`
+- Implement a prototype YAML I/O for `SkyModels`
+- Implement a `EDispMap` class
+- Implement support for coordinate systems in `SpatialModel`
+
+The following PRs should be implemented in order:
+
+- Implement the `BackgroundModel` class and use it in `MapEvaluator`
+- Replace the current `MapEvaluator` with the `IRFSkyModel` class and add the background directly in `MapFit`
+- Implement the `NPredModel` class and pass it directly to the `MapFit`
+- Implement the `Likelihood` and `CashLikelihood` class in `gammapy.utils.fitting` and remove the `MapFit` class.
+- Implement the `JointLikelihood` class in `gammapy.utils.fitting`
+- Implement a `Chi2Likelihood` class and remove the `FluxPointFit` class.
+
+Open Issues
+===========
+In the current design, the geometries used for the evaluation of the model components
+are pre-computed in the `MapDataset.setup()` call. If the position of the model
+component shifts strongly in the fit, the model component can be outside it's
+initial, cached geometry. To solve this problem a mechanism to check the validity
+of cached geometries should be added. Short-term the issue can be solved by
+defining large enough bounding boxes.
 
 
+
+Spectral Analysis
+=================
+This PIG does not address the question of restructuring the spectral analysis code.
+Still we would like to give a short outlook, how it could be integrated in the
+proposed fitting framework. The current implementation defines the following classes:
+
+**`SpectrumFit`**: class to perform a spectral joint-likelihood fit of multiple
+observations.
+
+**`SpectrumExtraction`**: class to compute vectors of counts, background and
+effective area for a list of observations. The results are bundled into
+a `SpectrumObservationList` object, containing a list of `SpectrumObservation`
+objects.
+
+**`CountsPredictor`** class to bundle a spectral model, effective area, livetime
+and energy dispersion. It computes the predicted number of signal (without background)
+counts.
+
+The `SpectrumObservation` object could be replaced by a `SpectrumDataset`, which
+bundles events, background and IRFs into a single object. Multiple `SpectrumDataset`
+objects could be in a `Datasets` object. The need for `SpectrumObservationList`
+is unclear. The `SpectrumFit` object could be fully replaced by `Fit`. The `CountsPredictor`
+could be replaced by `IRFSpectralModel` or `SpectraModelEvaluator`.
+
+Long term there is also the option to fully replace the spectral analysis by introducing
+`RegionGeom` and `RegionNDMap` objects (see https://github.com/gammapy/gammapy/issues/1805).
 
 
 
@@ -183,20 +441,113 @@ With the proposed structure following use cases can be solved:
 Alternatives
 ============
 
-Adding IRFs to `SkyModel`
--------------------------
-One possibility to avoid introduction of "forward folded" or binned models,
-would be to attach the IRFs to the current `SkyModel` class.
+Extend existing `MapEvaluator` and introduce `Dataset` classes
+--------------------------------------------------------------
+Alternatively the `BackgroundModel` could be implemented deriving from `SkyModel`
+and would be defined as part of the sky model like so:
 
-Add a `Dataset` class
+.. code::
+
+    sky_model = SkyModel()
+    backround = BackgroundModel()
+    total_model = sky_model + background
+    assert isinstance(total_model, SkyModels)
+
+The existing `MapEvaluator` must be changed to evaluate the components of
+`SkyModels` one by one, check the type of the component add apply IRFs for
+the component accordingly. To handle spatially varying IRFs, the `MapEvaluator`
+has to be extended to take psf and edisp maps on initialization. For every model
+component the look up for the corresponding psf and edisp happens within the
+`MapEvaluator` and should be cashed.
+
+To join the data, model and IRFs, a `Dataset` object could be defined, which takes
+the counts map, model and reduced IRFs maps and offers builtin likelihood functions.
+Internally it sets up the `MapEvaluator` object and computes the likelihood.
+For joint-likelihood analyses many instances of the `Dataset` are created and
+joined in a `JointDataset` or `Datasets` object, which is passed to the `Fit` object.
+
+1. Simple Stacked Fit
 ---------------------
-Instead of the likelihood a Dataset class could be introduced.
 
+.. code::
+
+    sky_model = SkyModel()
+    background = BackgroundModel(background_map)
+
+    total_model = sky_model + background
+
+    evaluator = MapEvaluator(exposure_map, psf_map, edisp_map, total_model)
+
+    dataset = MapDataset(counts_map, evaluator, likelihood="cash")
+
+    fit = Fit(dataset)
+    fit.optimize()
+
+
+2. Joint Fit across Multiple Observations
+-----------------------------------------
+
+.. code::
+
+    sky_model = SkyModel()
+
+    background_1 = BackgroundModel(background_map_1)
+    background_2 = BackgroundModel(background_map_2)
+
+    total_model_1 = sky_model + background_1
+    total_model_2 = sky_model + background_2
+
+    evaluator_1 = MapEvaluator(exposure_map_1, psf_map_1, edisp_map_1, total_model_1)
+    evaluator_2 = MapEvaluator(exposure_map_2, psf_map_2, edisp_map_2, total_model_2)
+
+    dataset_1 = MapDataset(counts_map_1, evaluator_1, likelihood="cash")
+    dataset_2 = MapDataset(counts_map_2, evaluator_2, likelihood="cash")
+
+    datasets = Datasets([dataset_1, dataset_2])
+    fit = Fit(datasets)
+    fit.optimize()
+
+
+3. Joint Likelihood with Fermi
+------------------------------
+
+.. code::
+
+    sky_model = SkyModel()
+    diffuse_model = SkyCubeDiffuse.read()
+
+    background = BackgroundModel(background_map)
+
+    total_model = sky_model + background
+    total_model_fermi = sky_model + diffuse_model
+
+    evaluator = MapEvaluator(exposure_map, psf_map, edisp_map, total_model)
+    evaluator_fermi = MapEvaluator(exposure_fermi, psf_fermi, total_model_fermi)
+
+    dataset = MapDataset(counts_map, evaluator, likelihood="cash")
+
+    dataset_fermi = MapDataset(counts_fermi, evaluator_fermi, likelihood="cash")
+
+    datasets = Datasets([dataset, dataset_fermi])
+    fit = Fit(datasets)
+    fit.optimize()
+
+
+In this scenario the need for "binned models" such as `IRFSkyModel` and `NPredModel`
+is avoided by making the background part of the definiton of the sky model and
+giving all the responsibility for the correct model evaluation to the `MapEvaluator`.
+In addition the caching of models must be implemented. This seems onceptionally not as
+clean as the introdcution of the `IRFSkyModel` and `NPredModel`, which really
+reflects the structure of the total model in the API. Possibly the `MapEvaluator`
+should be renamed to `ModelEvaluator`. In this solution the `Dataset` object is
+mandatory. In the solution described above the `Dataset` object could be introduced
+optionally as a convenience to the user with the same API.
 
 
 Other packages
 --------------
-Read and understand exiting implementations of joint-likelihood analyses:
+To decide on a final design it would help to read and understand the implementations
+of exiting joint-likelihood analyses frameworks:
 
 * Gammalib (http://gammalib.sourceforge.net/users/user_manual/) has
 the same focus as Gammapy.
