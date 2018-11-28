@@ -15,72 +15,50 @@ PIG 7 - Modeling and Joint Likelihood Fitting
 Abstract
 ========
 
-One of the most important features of Gammapy will be the modelling and fitting
+One of the most important features of Gammapy will be the modeling and fitting
 of gamma-ray data in 1D, 2D, 3D and combined joint-likelihood analysis scenarios.
-The joint-likelihood analysis scenario includes combinining 1D, 2D and 3D analyses,
-joint-fitting of multiple observations, time intervalls or event classes and
-combining data from different IACTs as well as combining IACT with Fermi-LAT or
-HAWC data. We propose the introduction of the concept of `Dataset` classes, which
-combine the reduced data per instrument observation, time intervall, event class etc.,
-with correspoding reduced IRFs, fit statistics and dataset specific models.
-Lihelihoods are then evaluated per dataset, mutliplied and passed to the fitting
-backend along with model parameters.
+The joint-likelihood analysis scenario includes combining 1D, 2D and 3D analyses,
+stacked fitting of multiple observations, joint-fitting of multiple observations,
+time intervalls or event classes and combining data from different IACTs as well
+as combining IACT with Fermi-LAT or HAWC data. We propose the introduction of a
+new uniform modeling framework protype to enable joint-likelihood fitting in Gammapy.
+The proposal should be implemented for Gammapy v0.10 and v0.11) to enable the most
+frequent uses cases. The final design for Gammapy 1.0 is expected to change in 2019
+based on the experience from the protoype, developments in CTA, and also studying other
+designs (e.g. Fermi ST/Fermipy / pointlike, 3ML, Gammalib, Sherpa datastack).
+
 
 
 What we have
 ============
 
-`MapFit`: class to perform a binned likelihood fit taking a model and IRFs. Does not support fitting of background models, does not support IRFs pers model component and it does not support joint-likelihood fitting.
+`MapFit`: class to perform a binned likelihood fit taking a model and IRFs.
+Does not support fitting of background models, does not support IRFs per model
+component and it does not support joint-likelihood fitting.
 
-`MapEvaluator`: class to bundle a sky model and IRFs as well as exposure. Computes predicted number of counts. Does not support IRFs per model component.
+`MapEvaluator`: class to bundle a sky model and IRFs as well as exposure.
+Computes predicted number of counts. Does not support IRFs per model component.
 
-`SpectrumFit`
+`SpectrumFit`:
 
-`Fit`: unified fitting interface
+`FluxPointFit`: class to fit spectral models to flux points. No joint fit possible.
 
-`SkyModel`: parametric, arithmetic model
+`SkyModel`: parametric, arithmetic model, improve
 
-`SkyModels`:
+`SkyModels`: extend and improve
 
-`CompoundSkyModel`
+`CompoundSkyModel`: delete
 
+`Fit`: unified fitting interface, improve. Will be modified to take a `Likelihood`
+or `JointLikelihood` object on initialization.
 
 
 
 Proposal
 ========
 
-* `SkyModelIRF`: a "forward folded" model, that applies IRFs to a `SkyModel`
-instance and returns an integrated quantity corresponding to predicted counts.
-It can only be evaluated on a fixed grid, passed on input. It is basically, what
-the current `ModelEvaluator` does now, but with the model parameters attached.
-
-* `BackgroundModel`: already integrated model, with fixed binning. It is
-initialized with a background map and introduces additional background parameters,
-such as `norm` or `tilt`. This model generic and not specific to 1D, 2D or 3D data.
-
-* `NPredModel`: combines a list of `SkyModelIRF` and / or `BackgroundModel` and
-joins the parameters lists and sums up the contributions from all model components
-in the list. This model generic and not specific to 1D, 2D or 3D data.
-
-* `Likelihood`: takes the binned data and model, updates the parameters and
-re-evaluates the model on every iteration of the fit. For different fit
-statistics sub-classes such as `CashLikelihood`, `WStatLikelihood` or
-`Chi2Likelihood` are introduced. This object is passed to the current `Fit` object
-
-* `JointLikelihood`: takes a list of `Likelihood` objects, joins the parameter
-lists and computes the joint likelihood. This object can be passed to the
-`Fit` object as well.
-
-
-Short term this code structure solves many uses cases without the introduction
-of `Datasets` and also replaces the current `MapFit`, as well as `FluxPointFit`
-and possibly `SpectrumFit` classes. Long-term we might re-introduce convenience
-classes, specific to certain tasks.
-
-The use cases that can be solved with the proposed structure are listed below:
-
-Currently
+Improvement of existing classes
+-------------------------------
 
 - The `CompoundSkyModel` is a nice very generic abstraction to support any
 kind of arithmetics between `SkyModel`, but the number of use cases for other operators,
@@ -149,8 +127,92 @@ total_model.write("model.yaml")
 
 Default parameters or `SkySpatialModel` as well as `SkyModel` should be added.
 
+
+Introduction of new classes
+---------------------------
+
+To complete the modeling and fitting framwork of Gammapy we propose to introduce
+the following new classes:
+
+
+* `IRFSkyModel`: a "forward folded" model, that applies IRFs to a `SkyModel`
+instance and returns an integrated quantity corresponding to predicted counts.
+In the current proposal it can only be evaluated on a fixed grid, which passed
+on initialization given by the exposure map. Later the evaluation on arbitrary
+grids could be introduced. In addition it takes reduced PSF and EDISP objects.
+In functionality it corresponds to the current `ModelEvaluator`, but with the
+model parameters attached. Additional "hidden" IRF parameters e.g. to propagate
+systematics could be optionally introduced later. This class will replace the current
+`ModelEvaluator`.
+
+* `BackgroundModel`: already integrated model, with fixed binning. It is
+initialized with a background map and introduces additional background parameters,
+such as `norm` or `tilt`. This model is evaluated on a fixed grid defined by the
+input map. Later evaluation on arbitrary grids could be introduced.
+
+* `NPredModel`: takes a list of instances of `SkyModelIRF` and / or `BackgroundModel`
+and joins the parameters lists and sums up the contributions from all model components
+in the list.
+
+* `Likelihood`: takes the binned data and model, updates the parameters and
+re-evaluates the model on every iteration of the fit. For different fit
+statistics sub-classes such as `CashLikelihood`, `WStatLikelihood` or
+`Chi2Likelihood` are introduced. This object is passed to the current `Fit` object
+
+* `JointLikelihood`: takes a list of `Likelihood` objects, joins the parameter
+lists and computes the joint likelihood. This object can be passed to the
+`Fit` object as well.
+
+* `Fit`:
+
+Short term this code structure solves many uses cases without the introduction
+of `Datasets` objects. It also replaces the current `MapFit`, as well as `FluxPointFit`
+and later possibly `SpectrumFit` classes. Mid-term we will introduce convenience
+classes to simplify the analyses.
+
+
+Use cases
+=========
+With the proposed structure following use cases can be solved:
+
+
+
+
+
+
 Alternatives
 ============
+
+Adding IRFs to `SkyModel`
+-------------------------
+One possibility to avoid introduction of "forward folded" or binned models,
+would be to attach the IRFs to the current `SkyModel` class.
+
+Add a `Dataset` class
+---------------------
+Instead of the likelihood a Dataset class could be introduced.
+
+
+
+Other packages
+--------------
+Read and understand exiting implementations of joint-likelihood analyses:
+
+* Gammalib (http://gammalib.sourceforge.net/users/user_manual/) has
+the same focus as Gammapy.
+
+* Fermipy https://fermipy.readthedocs.io/en/latest/, only supports a "stacked"
+analysis and does not have the concept of mutiple observations.
+
+* pointlike (https://nbviewer.jupyter.org/github/tburnett/Fermi-LAT/blob/master/pointlike_document/index.ipynb)
+
+* 3ML (https://threeml.readthedocs.io/en/latest/) uses a plugin system to interface
+to the existing mission frameworks.
+
+* Datastack http://cxc.harvard.edu/contrib/datastack/ adds support for joint fits
+of multiple datasets in Sherpa.
+
+
 
 
 Decision
