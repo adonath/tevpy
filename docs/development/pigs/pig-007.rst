@@ -72,50 +72,50 @@ after Gammapy 1.0.
 Remove the `CompoundSkyModel` and reimplement the `+` operator using the `SkyModels`
 class. Possibly remove the `SpectralCompoundModel` for consistency.
 
-```
-from gammapy.cube import SkyModel, SkyModels
+.. code-block::
 
-component_1 = SkyModel()
-component_2 = SkyModel()
+    from gammapy.cube import SkyModel, SkyModels
 
-total_model = component_1  + component_2
-assert isinstance(total_model, SkyModels)
+    component_1 = SkyModel()
+    component_2 = SkyModel()
 
-# or equivalent
+    total_model = component_1  + component_2
+    assert isinstance(total_model, SkyModels)
 
-total_model = SkyModels([component_1, component_2])
-```
+    # or equivalent
+
+    total_model = SkyModels([component_1, component_2])
 
 Add support for model component names:
 
-```
-from gammapy.cube import SkyModel, SkyModels
+.. code-block::
+    from gammapy.cube import SkyModel, SkyModels
 
-component_1 = SkyModel(name="source_1")
-component_2 = SkyModel(name="source_2")
+    component_1 = SkyModel(name="source_1")
+    component_2 = SkyModel(name="source_2")
 
-total_model = SkyModels([component_1, component_2])
+    total_model = SkyModels([component_1, component_2])
 
-total_model["source_1"].parameters["index"] = 2.3
+    total_model["source_1"].parameters["index"] = 2.3
 
-# or alternatively
+    # or alternatively
 
-total_model.parameters["source_1.index"] = 2.3
+    total_model.parameters["source_1.index"] = 2.3
 
-del model["source_2"]
-```
+    del model["source_2"]
+
 
 Fix the existing XML I/O and implement a prototype YAML I/O:
 
-```
-from gammapy.cube import SkyModels
+.. code-block::
 
-total_model = SkyModel.read("model.xml")
-total_model.write("model.xml")
+    from gammapy.cube import SkyModels
 
-total_model = SkyModel.read("model.yaml")
-total_model.write("model.yaml")
-```
+    total_model = SkyModel.read("model.xml")
+    total_model.write("model.xml")
+
+    total_model = SkyModel.read("model.yaml")
+    total_model.write("model.yaml")
 
 .. note::
 
