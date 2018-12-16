@@ -1,0 +1,95 @@
+.. include:: ../../references.txt
+
+.. _pig-007:
+
+*****************************************
+PIG 9 - Map Analysis and Data Preparation
+*****************************************
+
+* Author: Axel Donath & Regis Terrier
+* Created: Nov 26, 2018
+* Accepted:
+* Status:
+* Discussion:
+
+
+Introduction
+============
+
+
+Status Quo
+==========
+
+Data preparation
+----------------
+To prepare the gamma-ray data for the modeling and fitting step there are currently
+two classes in Gammapy:
+
+**`MapMaker`**: class to compute stacked counts, background and exposure maps
+from a list of observations, given a fixed map geometry and offset cut. The
+result is a dictionary of `Map` objects.
+
+**`SpectrumExtraction`**: class to compute vectors of counts, background and
+effective area data for a list of observations. The results are bundled into
+a `SpectrumObservationList` object, containing a list of individual `SpectrumObservation`
+objects.
+
+Proposal
+========
+
+
+Data Preparation
+----------------
+
+Already in the current design the data preparation and modeling steps are strictly
+separated. The data preparation is handled via the `MapMaker`, while the modeling
+is implemented via the `MapFit` class. The advantage of this separation is, that
+the modeling can be executed interactively, while the data preparation of many
+observations, which is computationally costly, can be done in advance. The disadvantage
+of the current design is that the map geometry for the counts, background and exposure
+maps as well as the offset-cut must be choosen during the din extraata preparation step and
+cannot be modified later. The current `MapMaker` also computes only stacked maps
+by default. For this reason we propose to extend the current data preparation and
+make it more flexible in the following way:
+
+**`MapMaker`**: change the existing `MapMaker`.
+to compute exposure, background, PSF and energy dispersion maps per observation
+and save them to disk. All quantities change only weakly with position, so a
+coarse spatial binning can be used to save storage space. Reasonable default
+map gemoetries could be defined, but user defined geometries are possible as well.
+Event lists are filtered and also written to disk. The `ObservationMapEstimator`
+defines either a `.stack(observations)` method to compute a stacked map across the given observations
+in a second step or the `.run()` method is extended with a `stack=True` argument,
+which computes the stacked map in addition. A separation into mutiple classes e.g.
+`CountsMapEstimator` and `IRFMapEstimator` might be reasonable. 
+TODO: Add event selection in this step?
+
+For the PSF there is already a `PSFMap` object, that holds pre-computed PSF kernels
+for all the positions in the sky map. We propose to introduce a `EDispMap` class,
+that provides the equivalent functionality for the energy dispersion matrix:
+
+**`EdispMap`**: map that holds pre-computed energy dispersion matrices for
+all the positions in the sky map. Defines a `.get_edisp_matrix(position=)` method,
+that interpolates the energy dispersion at an arbitrary position and returns an
+`EnergyDispersion` object.
+
+
+List of Pull Requests
+=====================
+
+
+- Implement a `EDispMap` class
+- Implement `.stack()` methods
+
+
+Alternatives
+============
+
+
+Decision
+========
+
+
+
+.. _gammapy: https://github.com/gammapy/gammapy
+.. _gammapy-web: https://github.com/gammapy/gammapy-webpage

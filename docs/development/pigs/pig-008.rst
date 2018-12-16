@@ -1,0 +1,210 @@
+.. include:: ../../references.txt
+
+.. _pig-007:
+
+*****************
+PIG 9 - Modelling
+*****************
+
+* Author: Axel Donath & Regis Terrier
+* Created: Nov 26, 2018
+* Accepted:
+* Status:
+* Discussion:
+
+
+Introduction
+============
+
+
+
+
+Status Quo
+==========
+
+
+
+
+
+Proposal
+========
+
+Uniform Naming Scheme for Models
+--------------------------------
+Currently Gammapy implements mainly 4 categories of models: spectral models, morphology or
+spatial models, combined spectral and spatial models ("cube") and lightcurve or phase models.
+We propose a uniform naming scheme for these model classes, including the following
+base classes:
+
+- SpectralModel
+- SpatialModel
+- TemporalModel
+- SourceModel or SkyModel
+- SourceModels or SkyModels
+
+The `SourceModel` class combines the spectral, spatial and temporal components into a 
+single model. This can be either achieved by factorizing the individual model components,
+such that the source model is ginve by the outer product of the spectra, spatial and temporal
+components.
+
+Non parametric models, based on model templates should be named as following:
+
+- SpectralTemplate
+- SpatialTemplate
+- TemporalTemplate
+- SourceTemplate or SkyTemplate
+
+Parametric models are named after their parametrization, such as `Powerlaw` or
+`Gaussian`. In case the name is not unique (e.g. for a gaussian spectral and spatial
+model, the corresponding prefix should be used, such as `SpectralGaussian` or
+`SpatialGaussian`).
+
+
+Introduction of Background Models
+---------------------------------
+For IACTs analysis hadronic background models are required, which model the 
+hadronic (gamma-like) background emission. We propose the introduction of the
+two model classes:
+
+- BackgroundModel
+- BackgroundTemplate
+
+**`BackgroundModel`**: already integrated model, with fixed binning. It is initialized
+with a background map and introduces additional background parameters, such as `norm`
+and `tilt`. This model is evaluated on a fixed grid defined by the input map.
+
+Introduction of IRF folded models
+---------------------------------
+
+- SourceIRFModel
+- (SpatialIRFModel)
+- (SpectralIRFModel)
+
+
+
+**`IRFSkyModel`** or **`ModelEvaluator`**: a "forward folded" model, that applies
+IRFs to a `SkyModel` instance and returns an integrated quantity corresponding
+to predicted counts. In the current proposal it can only be evaluated on a fixed grid,
+which passed on initialization given by the exposure map. Later the evaluation on arbitrary
+grids could be introduced. In addition it takes reduced PSF and EDISP objects.
+In functionality it corresponds to the current `MapEvaluator`, but with the
+model parameters attached. Additional "hidden" IRF parameters e.g. to propagate
+systematics could be optionally introduced later. This class will replace the current
+`MapEvaluator`. The `IRFSkyModel` can be initialized with a custom geometry, where
+the sky model is evaluated on.
+
+
+Collections of Models
+---------------------
+**`CompoundSkyModel`**: the existing `CompoundSkyModel` is a nice very generic
+abstraction to support any kind of arithmetics between `SkyModel` objects, but
+the number of use cases for other operators, except for "+" is very limited and
+can always be achieved by implementing a custom model. I/O and component handling
+of this hierarchical model component structure is intrinsically difficult. For
+this reason we propose to first support and improve the existing `SkyModels` that
+implements an easier to handle flat hierarchy for model components. Support for
+arbitrary model arithmetics can be introduced, if needed, after Gammapy 1.0. We
+propose to remove the `CompoundSkyModel` and reimplement the `+` operator using
+the `SkyModels` class. Possibly remove the `SpectralCompoundModel` for consistency.
+
+.. code-block::
+
+    from gammapy.cube import SkyModel, SkyModels
+
+    component_1 = SkyModel()
+    component_2 = SkyModel()
+
+    total_model = component_1 + component_2
+    assert isinstance(total_model, SkyModels)
+
+    # becomes quivalent to
+
+    total_model = SkyModels([component_1, component_2])
+
+
+Introduction of model name attributes
+-------------------------------------
+
+
+**`SkyModels`**: the existing `SkyModel` class should be improved to support model
+component names, such that the following example works:
+
+.. code-block::
+
+    from gammapy.cube import SkyModel, SkyModels
+
+    component_1 = SkyModel(name="source_1")
+    component_2 = SkyModel(name="source_2")
+
+    total_model = SkyModels([component_1, component_2])
+
+    total_model["source_1"].parameters["index"] = 2.3
+
+    # or alternatively
+
+    total_model.parameters["source_1.index"] = 2.3
+
+    # delete a model component in place
+    del model["source_2"]
+
+This is also simplifies the parameter access in the fitting back-end, because
+parameter names become unique. E.g. no need for cryptic `par_00X_` parameter names
+in the minuit backend, which simplifies debugging and interaction by the user with
+methods such as `Fit.likelihood_profile()` or `Fit.confidence()`, where parameter
+identifiers must be given.
+
+
+Improve and implement model I/O
+-------------------------------
+
+Fix the existing XML I/O on `SkyModel`and implement a prototype YAML I/O:
+
+.. code-block::
+
+    from gammapy.cube import SkyModels
+
+    total_model = SkyModel.read("model.xml")
+    total_model.write("model.xml")
+
+    total_model = SkyModel.read("model.yaml")
+    total_model.write("model.yaml")
+
+
+Implement coordinate handling for spatial models
+------------------------------------------------
+
+**`SpatialModel`**: implement support for coordinate systems. Add an interface
+for `SkyCoord`, by introducing a `SpatialModel.position` attribute. Add default
+parameter values. Add a `SpatialModel.roi_radius` attribute, that defines 
+the region the model is evaluated in.
+
+
+List of Pull Requests
+=====================
+
+This is proposal for a list of pull requests implementing the proposed changes.
+The following PRs could be implemented independently of each other:
+
+
+- Remove `CompoundSkyModel` and reimplement the "+" operator using `SkyModels`
+- Remove `SpectralCompoundModel` class
+- Implement support for model component names in `SkyModels` and `SkyModel`
+- Fix existing XML I/O of `SkyModels`
+- Implement a prototype YAML I/O for `SkyModels`
+- Implement support for coordinate systems in `SpatialModel`
+- Implement `BackgroundModel` and `BackgroundTemplate`
+- Rename existing `ModelEvaluator` to `SourceIRFModel` and remove background
+handling.
+- Rename models according to the proposed naming scheme
+
+Alternatives
+============
+
+
+Decision
+========
+
+
+
+.. _gammapy: https://github.com/gammapy/gammapy
+.. _gammapy-web: https://github.com/gammapy/gammapy-webpage
