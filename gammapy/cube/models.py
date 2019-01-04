@@ -168,6 +168,17 @@ class SkyModel(SkyModelBase):
         return self._spectral_model
 
     @property
+    def position(self):
+        from astropy.coordinates import SkyCoord
+        lon = self.spatial_model.parameters["lon_0"].quantity
+        lat = self.spatial_model.parameters["lat_0"].quantity
+        return SkyCoord(lon, lat, frame="galactic")
+
+    @property
+    def evaluation_radius(self):
+        return 3 * self.spatial_model.parameters["sigma"].quantity
+
+    @property
     def parameters(self):
         """Parameters (`~gammapy.utils.modeling.Parameters`)"""
         return self._parameters

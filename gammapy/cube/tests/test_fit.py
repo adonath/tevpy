@@ -7,6 +7,7 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from regions import CircleSkyRegion
 from ...utils.testing import requires_data, requires_dependency
+from ...utils.fitting import Fit
 from ...irf import EffectiveAreaTable2D, EnergyDependentMultiGaussPSF
 from ...irf.energy_dispersion import EnergyDispersion
 from ...maps import MapAxis, WcsGeom, WcsNDMap, Map
@@ -14,6 +15,7 @@ from ...image.models import SkyGaussian
 from ...spectrum.models import PowerLaw
 from ..models import SkyModel
 from .. import MapEvaluator, MapFit, make_map_exposure_true_energy, PSFKernel
+from ..dataset import MapDataset, BackgroundModel
 
 
 def geom(ebounds):
@@ -106,29 +108,29 @@ def test_map_fit(sky_model):
 
     sky_model.parameters["sigma"].frozen = True
 
-    fit = MapFit(
-        model=sky_model,
-        counts=counts_map,
-        exposure=exposure_map,
-        background=background_map,
-        mask=mask_map,
-        psf=psf_map,
-        edisp=edisp_map,
-    )
-    result = fit.run()
+    background_model = BackgroundModel(background_map)
+    background_model.parameters["norm"].frozen = True
 
-    assert sky_model is fit._model
-    assert fit._model is result.model
-    assert sky_model is result.model
+    maps = {
+        "counts": counts_map,
+        "exposure": exposure_map,
+        "psf": psf_map,
+        "edisp": edisp_map,
+    }
+
+    dataset = MapDataset(model=sky_model, maps=maps, mask=mask_map, background=background_model)
+
+    fit = Fit(dataset)
+    result = fit.run()
 
     assert result.success
     assert "minuit" in repr(result)
 
-    npred = fit.evaluator.compute_npred().sum()
+    npred = dataset.npred.sum()
     assert_allclose(npred, 2455.230889, rtol=1e-3)
     assert_allclose(result.total_stat, 5417.350078, rtol=1e-3)
 
-    pars = result.model.parameters
+    pars = sky_model.parameters
     assert_allclose(pars["lon_0"].value, 0.2, rtol=1e-2)
     assert_allclose(pars.error("lon_0"), 0.004177, rtol=1e-2)
 

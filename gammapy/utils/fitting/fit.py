@@ -4,7 +4,6 @@ import logging
 import abc
 import numpy as np
 from astropy.utils.misc import InheritDocstrings
-from ...extern import six
 from .iminuit import optimize_iminuit, covariance_iminuit, confidence_iminuit, mncontour
 from .sherpa import optimize_sherpa, covariance_sherpa
 from .scipy import optimize_scipy, covariance_scipy
@@ -63,24 +62,16 @@ class Registry(object):
 registry = Registry()
 
 
-@six.add_metaclass(FitMeta)
 class Fit(object):
-    """Abstract Fit base class.
+    """Fit class.
+
+    Parameters
+    ----------
+    dataset : `Dataset`
+        Dataset to fit.
     """
-
-    @abc.abstractmethod
-    def total_stat(self, parameters):
-        """Total likelihood given the current model parameters"""
-        pass
-
-    # TODO: probably we should change the `Fit` class to be coupled
-    # to a likelihood object, not a model object
-    # To facilitate this evolution, we centralise the coupling
-    # in this property in a single place,
-    # and only use `parameters` from `Fit`, not `model`.
-    @property
-    def _parameters(self):
-        return self._model.parameters
+    def __init__(self, dataset):
+        self.dataset = dataset
 
     def run(self, optimize_opts=None, covariance_opts=None):
         """
@@ -114,7 +105,6 @@ class Fit(object):
         covariance_result = self.covariance(**covariance_opts)
         # TODO: not sure how best to report the results
         # back or how to form the FitResult object.
-        optimize_result._model = covariance_result.model
         optimize_result._success = optimize_result.success and covariance_result.success
         optimize_result._nfev += covariance_result.nfev
 
@@ -147,7 +137,7 @@ class Fit(object):
         fit_result : `FitResult`
             Results
         """
-        parameters = self._parameters
+        parameters = self.dataset.parameters
 
         if parameters.apply_autoscale:
             parameters.autoscale()
@@ -157,7 +147,7 @@ class Fit(object):
         # probably should pass a likelihood, which has a model, which has parameters
         # and return something simpler, not a tuple of three things
         factors, info, optimizer = compute(
-            parameters=parameters, function=self.total_stat, **kwargs
+            parameters=parameters, function=self.dataset._likelihood_to_fit, **kwargs
         )
 
         # TODO: Change to a stateless interface for minuit also, or if we must support
@@ -171,8 +161,7 @@ class Fit(object):
         parameters.set_parameter_factors(factors)
 
         return FitResult(
-            model=self._model,
-            total_stat=self.total_stat(self._model.parameters),
+            total_stat=self.dataset.likelihood,
             backend=backend,
             method=kwargs.get("method", backend),
             **info
@@ -194,7 +183,7 @@ class Fit(object):
             Results
         """
         compute = registry.get("covariance", backend)
-        parameters = self._parameters
+        parameters = self.dataset.parameters
 
         # TODO: wrap MINUIT in a stateless backend
         with parameters.restore_values:
@@ -210,7 +199,7 @@ class Fit(object):
         parameters.set_covariance_factors(covariance_factors)
 
         # TODO: decide what to return, and fill the info correctly!
-        return CovarianceResult(model=self._model, success=info["success"], nfev=0)
+        return CovarianceResult(success=info["success"], nfev=0)
 
     def confidence(self, parameter, backend="minuit", sigma=1, **kwargs):
         """Estimate confidence interval.
@@ -233,7 +222,7 @@ class Fit(object):
             Dictionary with keys "errp", 'errn", "success" and "nfev".
         """
         compute = registry.get("confidence", backend)
-        parameters = self._parameters
+        parameters = self.dataset.parameters
         parameter = parameters[parameter]
 
         # TODO: wrap MINUIT in a stateless backend
@@ -288,7 +277,7 @@ class Fit(object):
         results : dict
             Dictionary with keys "values" and "likelihood".
         """
-        parameters = self._parameters
+        parameters = self.dataset.parameters
         parameter = parameters[parameter]
 
         if values is None:
@@ -305,8 +294,7 @@ class Fit(object):
         with parameters.restore_values:
             for value in values:
                 parameter.value = value
-                stat = self.total_stat(parameters)
-                likelihood.append(stat)
+                likelihood.append(self.dataset.likelihood)
 
         return {"values": values, "likelihood": np.array(likelihood)}
 
@@ -393,15 +381,9 @@ class Fit(object):
 class CovarianceResult(object):
     """Covariance result object."""
 
-    def __init__(self, model, success, nfev):
-        self._model = model
+    def __init__(self, success, nfev):
         self._success = success
         self._nfev = nfev
-
-    @property
-    def model(self):
-        """Best fit model."""
-        return self._model
 
     @property
     def success(self):
@@ -417,19 +399,13 @@ class CovarianceResult(object):
 class FitResult(object):
     """Fit result object."""
 
-    def __init__(self, model, success, nfev, total_stat, message, backend, method):
-        self._model = model
+    def __init__(self, success, nfev, total_stat, message, backend, method):
         self._success = success
         self._nfev = nfev
         self._total_stat = total_stat
         self._message = message
         self._backend = backend
         self._method = method
-
-    @property
-    def model(self):
-        """Best fit model."""
-        return self._model
 
     @property
     def success(self):

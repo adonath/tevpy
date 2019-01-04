@@ -3,19 +3,10 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import logging
 import numpy as np
-from .likelihood import Likelihood
 
 __all__ = ["optimize_iminuit", "covariance_iminuit", "confidence_iminuit", "mncontour"]
 
 log = logging.getLogger(__name__)
-
-
-class MinuitLikelihood(Likelihood):
-    """Likelihood function interface for iminuit."""
-
-    def fcn(self, *factors):
-        self.parameters.set_parameter_factors(factors)
-        return self.function(self.parameters)
 
 
 def optimize_iminuit(parameters, function, **kwargs):
@@ -43,9 +34,7 @@ def optimize_iminuit(parameters, function, **kwargs):
     kwargs.setdefault("print_level", 0)
     kwargs.update(make_minuit_par_kwargs(parameters))
 
-    minuit_func = MinuitLikelihood(function, parameters)
-
-    minuit = Minuit(minuit_func.fcn, **kwargs)
+    minuit = Minuit(function, **kwargs)
     minuit.migrad()
 
     factors = minuit.args
