@@ -1,0 +1,87 @@
+.. include:: ../../references.txt
+
+.. _pig-009:
+
+********************************
+PIG 9 - Re-design of gammapy.irf
+********************************
+
+* Author: Jason Watson, Christoph Deil, Regis Terrier, Axel Donath
+* Created: Jan 15th, 2019
+* Accepted: 
+* Status:
+* Discussion:
+
+Abstract
+========
+The gammapy.irf sub-module contains classes to handle instrument response
+functions, such as effective area (AEFF), point spread function (PSF)
+and energy disperion (EDISP). It provides the serialization interface 
+and classes to compute reduced IRFs which are later used in the high-level
+analysis.
+
+
+What we have
+============
+
+Background
+---------- 
+- `Background2D`: radially symmetric background model, depending on energy and offset
+- `Background3D`: field of view background model, dependeing on energy and fov lon and lat coordinates
+
+Effective Area
+--------------
+- `EffectiveAreaTable`: effective area depending on energy
+- `EffectiveAreaTable2D`: effective are depending on energy and offset
+
+Energy Dispersion
+-----------------
+- `EnergyDispersion`: energy dispersion depending on reconstructed and true energy
+- `EnergyDispersion2D`: energy dispersion depending on reconstructed energy, true energy
+  and offset.
+
+
+Point Spread Function
+---------------------
+- `PSF3D`: PSF depending on energy, offset and rad
+- `TablePSF`: PSF depending on rad
+- `EnergyDependentTablePSF`: PSF depending on energy and rad
+- `EnergyDepdendentMultiGaussPSF`: multi-gauss parametrized PSF model, depending on energy and offset
+- `KingPSF`: king profile parametrized PSF model depending on energy and offset
+- `PSFKernel`: psf model depending on energy, lon and lat
+
+
+Stacking IRFs
+-------------
+- `IRFStacker`: stack energy dispersion, livetime and effective area (used for spectral analysis)
+- `make_psf`: make `EnergyDepdendentTablePSF` for a given source position
+- `make_mean_psf`: compute exposure-weighted mean `EnergyDepdendentTablePSF` across mutiple observations
+- `make_mean_edisp`: compute exposure-weighted mean `EnergyDispersion` across mutiple observations, re-uses
+  `IRFStacker`
+
+
+Proposal
+========
+A solution similar to `gammapy.maps`?
+
+
+`IRFGeom`
+---------
+We propose to introduce an `IRFGeom` object.
+
+
+`IRFAxis`
+---------
+We propose to introduce an `IRFAxis` object. In the simplest case
+it can be:
+
+.. code::
+
+	from gammapy.maps import MapAxis as IRFAxis
+
+
+
+
+Decision
+========
+
