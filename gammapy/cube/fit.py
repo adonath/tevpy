@@ -2,7 +2,7 @@
 import numpy as np
 from astropy.utils import lazyproperty
 import astropy.units as u
-from ..utils.fitting import Fit, Parameters
+from ..utils.fitting import Parameters
 from ..stats import cash
 from ..maps import Map, MapAxis
 
@@ -95,6 +95,34 @@ class MapDataset:
         else:
             stat = self.likelihood_per_bin()[mask & self.mask.data]
         return np.sum(stat, dtype=np.float64)
+
+    def from_example(self, which="gauss-source", geom=None, random_state=0):
+        """Create MapDataset from an example source.
+
+        Parameters
+        ----------
+        which : {"gauss-source"}
+        """
+        from ..maps import Map
+        from ..spectrum.models import Powerlaw
+        from ..image.models import SkyGaussian
+        from .models import SkyModel, BackgroundModel
+
+        spectral_model = Powerlaw()
+        spatial_model = SkyGaussian()
+
+        kwargs = {}
+        kwargs["model"] = SkyModel(spectral_model, spatial_model)
+        kwargs["exposure"] = Map.from_geom()
+        background = Map.from_geom()
+
+        kwargs["background_model"] = BackgroundModel(background)
+
+        example_dataset = self.__class__(**kwargs)
+        counts = example_dataset.npred()
+        counts.data = random_state.poisson(counts.data)
+        example_dataset.counts = counts
+        return example_dataset
 
 
 class MapEvaluator:
