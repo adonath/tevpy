@@ -9,6 +9,9 @@ class Model:
 
     # TODO: expose model parameters as attributes
 
+    def __init__(self, name):
+        self.name = name
+        
     def copy(self):
         """A deep copy."""
         return copy.deepcopy(self)

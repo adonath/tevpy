@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """Model parameter classes."""
 import copy
+import weakref
 import numpy as np
 from astropy import units as u
 from astropy.table import Table
@@ -45,7 +46,7 @@ class Parameter:
         Frozen? (used in fitting)
     """
 
-    __slots__ = ["_name", "_factor", "_scale", "_unit", "_min", "_max", "_frozen"]
+    __slots__ = ["_name", "_factor", "_scale", "_unit", "_min", "_max", "_frozen", "_model_ref", "_dataset_ref"]
 
     def __init__(
         self, name, factor, unit="", scale=1, min=np.nan, max=np.nan, frozen=False
@@ -62,11 +63,27 @@ class Parameter:
         self.min = min
         self.max = max
         self.frozen = frozen
+        self._model_ref = None
+        self._dataset_ref = None
 
     @property
     def name(self):
         """Name (str)."""
         return self._name
+
+    @property
+    def full_name(self):
+        if self._dataset_ref:
+            dataset_name = self._dataset_ref.name + "."
+        else:
+            dataset_name = ""
+
+        if self._model_ref:
+            model_name = self._model_ref.name + "."
+        else:
+            model_name = ""
+
+        return dataset_name + model_name + self.name
 
     @name.setter
     def name(self, val):
@@ -230,10 +247,21 @@ class Parameters:
         see `~gammapy.utils.modeling.Parameter.autoscale`
     """
 
-    def __init__(self, parameters, covariance=None, apply_autoscale=True):
+    def __init__(self, parameters, covariance=None, apply_autoscale=True, dataset=None, model=None, access_by_full_name=False):
         self._parameters = parameters
         self.covariance = covariance
         self.apply_autoscale = apply_autoscale
+        self._access_by_full_name = access_by_full_name
+
+        if model:
+            for par in self.parameters:
+                par._model_ref = model
+
+        if dataset:
+            for par in self.parameters:
+                par._dataset_ref = dataset
+
+
 
     def _init_covariance(self):
         if self.covariance is None:
@@ -257,7 +285,10 @@ class Parameters:
     @property
     def names(self):
         """List of parameter names"""
-        return [par.name for par in self.parameters]
+        return [self._get_par_name(par) for par in self.parameters]
+
+    def _get_par_name(self, par):
+        return par.full_name if self._access_by_full_name else par.name
 
     def __str__(self):
         ss = self.__class__.__name__
@@ -281,7 +312,7 @@ class Parameters:
             raise IndexError("No parameter: {!r}".format(val))
         elif isinstance(val, str):
             for idx, par in enumerate(self.parameters):
-                if val == par.name:
+                if val == self._get_par_name(par):
                     return idx
             raise IndexError("No parameter: {!r}".format(val))
         else:
@@ -304,6 +335,13 @@ class Parameters:
         """Convert parameter attributes to `~astropy.table.Table`."""
         t = Table()
         t["name"] = [p.name for p in self.parameters]
+        if self._access_by_full_name:
+            t["model"] = [p._model_ref.name for p in self.parameters]
+            try:
+                t["dataset"] = [p._dataset_ref.name for p in self.parameters]
+            except AttributeError:
+                pass
+
         t["value"] = [p.value for p in self.parameters]
         if self.covariance is None:
             t["error"] = np.nan
@@ -348,10 +386,10 @@ class Parameters:
 
         table = Table()
         table["name"] = self.names
-        for idx, par in enumerate(self.parameters):
+        for idx, name in enumerate(table["name"]):
             vals = self.covariance[idx]
-            table[par.name] = vals
-            table[par.name].format = ".3e"
+            table[name] = vals
+            table[name].format = ".3e"
         return table
 
     @property

@@ -528,7 +528,7 @@ class PowerLaw(SpectralModel):
                 Parameter("index", index),
                 Parameter("amplitude", amplitude),
                 Parameter("reference", reference, frozen=True),
-            ]
+            ],
         )
 
     @staticmethod

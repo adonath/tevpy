@@ -52,11 +52,23 @@ class SkyModels(Model):
     def __init__(self, skymodels):
         self.skymodels = skymodels
 
-        pars = []
+        parameters = []
+        existing_names = []
+
         for skymodel in skymodels:
-            for p in skymodel.parameters:
-                pars.append(p)
-        self._parameters = Parameters(pars)
+            idx, suffix = 1, ""
+            while skymodel.name + suffix in existing_names:
+                suffix =  "_{}".format(idx)
+                idx += 1
+
+            existing_names.append(skymodel.name + suffix)
+            skymodel.name = skymodel.name + suffix
+
+            setattr(self, skymodel.name, skymodel)
+
+            parameters += skymodel.parameters
+
+        self._parameters = Parameters(parameters, access_by_full_name=True)
 
     @property
     def parameters(self):
@@ -138,12 +150,13 @@ class SkyModel(SkyModelBase):
         Model identifier
     """
 
-    def __init__(self, spatial_model, spectral_model, name="SkyModel"):
+    def __init__(self, spatial_model, spectral_model, name="source"):
         self.name = name
         self._spatial_model = spatial_model
         self._spectral_model = spectral_model
         self._parameters = Parameters(
-            spatial_model.parameters.parameters + spectral_model.parameters.parameters
+            spatial_model.parameters.parameters + spectral_model.parameters.parameters,
+            model=self
         )
 
     @property
@@ -296,14 +309,15 @@ class SkyDiffuseCube(SkyModelBase):
 
     """
 
-    def __init__(self, map, norm=1, meta=None, interp_kwargs=None):
+    def __init__(self, map, norm=1, meta=None, interp_kwargs=None, name="diffuse"):
+        self.name = name
         axis = map.geom.get_axis_by_name("energy")
 
         if axis.node_type != "center":
             raise ValueError('Need a map with energy axis node_type="center"')
 
         self.map = map
-        self.parameters = Parameters([Parameter("norm", norm)])
+        self.parameters = Parameters([Parameter("norm", norm)], model=self)
         self.meta = {} if meta is None else meta
 
         interp_kwargs = {} if interp_kwargs is None else interp_kwargs
@@ -365,7 +379,8 @@ class BackgroundModel(Model):
         Background evaluated on the Map
     """
 
-    def __init__(self, background, norm=1, tilt=0, reference="1 TeV"):
+    def __init__(self, background, norm=1, tilt=0, reference="1 TeV", name="background"):
+        self.name = name
 
         axis = background.geom.get_axis_by_name("energy")
         if axis.node_type != "edges":
@@ -377,7 +392,8 @@ class BackgroundModel(Model):
                 Parameter("norm", norm, unit=""),
                 Parameter("tilt", tilt, unit="", frozen=True),
                 Parameter("reference", reference, frozen=True),
-            ]
+            ],
+            model=self,
         )
 
     @lazyproperty
