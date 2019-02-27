@@ -12,6 +12,180 @@ __all__ = ["MapMaker", "MapMakerObs"]
 log = logging.getLogger(__name__)
 
 
+
+
+class IRFMapEstimator:
+    """Estimate coarse maps for PSF, EDISP, exposure and background.
+
+    Parameters
+    ----------
+    geom : `MapGeom`
+        Coarse map geometry.
+    """
+
+    def __init__(self, observation, geom, theta=None, migra=None, time_interval=None):
+        self.observation = observation
+        self.geom = geom
+        self.time_interval = time_interval
+        self.theta = theta
+        self.migra = migra
+
+    @property
+    def energy(self):
+        energy_axis = self.geom.get_axis_by_name("energy")
+        return energy_axis.center * energy_axis.unit
+
+    @property
+    def energy_edges(self):
+        energy_axis = self.geom.get_axis_by_name("energy")
+        return energy_axis.edges * energy_axis.unit
+
+    @property
+    def geom_image(self):
+        return self.geom.to_image()
+
+    @lazyproperty
+    def offsets(self):
+        """Get offset values"""
+        return self.geom_image.separation(self.observation.pointing_radec)
+
+    @lazyproperty
+    def fov_lon(self):
+        pass
+
+    @lazyproperty
+    def fov_lat(self):
+        pass
+
+    def estimate_psf(self):
+        """"""
+        psf_values = self.observation.psf.evaluate(
+            offset=self.offsets,
+            energy=self.energy,
+            rad=self.theta)
+
+        # Re-order axes to be consistent with expected geometry
+        psf_values = np.transpose(psf_values, axes=(2, 0, 1))
+
+        psf_map = Map.from_geom(self.psf_geom, unit="sr-1")
+        psf_map.data = psf_values.to_value("sr-1")
+        return PSFMap(psf_map)
+
+    def estimate_edisp(self, observation):
+        """"""
+        edisp_values = self.observation.edisp.data.evaluate(
+            offset=self.offsets,
+            e_true=self.energy,
+            migra=self.migra,
+        )
+
+        # Re-order axes to be consistent with expected geometry
+        edisp_values = np.transpose(edisp_values, axes=(1, 0, 2))
+
+        # Create Map and fill relevant entries
+        edisp_map = Map.from_geom(self.edisp_geom, unit="")
+        edisp_map.data = edisp_values.to_value("")
+        return EDispMap(edisp_map)
+
+    def estimate_background(self):
+        return Map()
+
+    def estimate_exposure(self):
+        """"""
+        aeff_values = self.observation.aeff.data.evaluate(
+            offset=self.offset,
+            energy=self.energy,
+        )
+
+        exposure_values = (aeff_values * self.observation.livetime).to("m2 s")
+
+        exposure_map = Map.from_geom(self.geom, unit="")
+        exposure_map.data = exposure_values.to_value("")
+        return exposure_map
+
+
+    def run(self):
+        """Estimate observation maps"""
+        maps = {}
+
+        maps["exposure"] = self.estimate_exposure(self)
+        maps["background"] = self.estimate_background(self)
+
+        maps["psf"] = self.estimate_psf(self)
+        maps["psf"].exposure = maps["exposure"]
+
+        maps["edisp"] = self.estimate_edisp(self)
+        maps["edips"].exposure = maps["edisp"]
+        return maps
+
+    @staticmethod
+    def write(self, observation, maps, folder="analysis", overwrite=False):
+        """Write maps to disk.
+
+        Parameters
+        ----------
+        observation : `DataStoreObservation`
+
+
+        """
+        maps = self.run(observation)
+        for name, map in maps.items():
+            path = Path(folder) / "obs_{}".format(id=observation.obs_id)
+            path.mkdir(parent=True, exists_ok=True)
+            filename = "{name}.fits.gz".format(name=name)
+            map.write(path / filename, overwrite=overwrite)
+
+            observation.events.write(path / "events.fits.gz")
+
+
+class MapEstimator:
+    """Estimate `MapDataset`"""
+
+    def __init__(self, geom, offset_max, exclusion_mask=None):
+        self.geom = geom
+        self.offset_max = Angle(offset_max)
+        self.exclusion_mask = exclusion_mask
+
+    def _apply_offset_max(self, map_):
+        """"""
+        return
+
+    def cutout_geom(self, ):
+        """"""
+        position =
+        return self.geom.cutout(position, width=self.offset_max)
+
+    def estimate_counts(self, events):
+        """"""
+        geom = self.cutout_geom()
+        counts = Map.from_geom(geom)
+        fill_map_counts(counts, events)
+        return counts
+
+    def estimate_background(self, background):
+        """"""
+        pass
+
+
+    def join(self):
+        pass
+
+    def stack(self):
+        """"""
+        counts = Map.from_geom(self.geom)
+
+        for observation in observations:
+
+            coords = self.cutout_geom().coords
+
+
+        return maps
+
+    def write(self):
+        pass
+
+
+
 class MapMaker:
     """Make maps from IACT observations.
 
@@ -44,6 +218,7 @@ class MapMaker:
         if exclusion_mask is not None:
             self.maps["exclusion"] = exclusion_mask
 
+
     def run(self, observations, selection=None):
         """
         Run MapMaker for a list of observations to create
@@ -64,21 +239,35 @@ class MapMaker:
         """
         selection = _check_selection(selection)
 
+        maps = {}
+
         # Initialise zero-filled maps
         for name in selection:
             if name == "exposure":
-                self.maps[name] = Map.from_geom(self.geom_true, unit="m2 s")
+                maps[name] = Map.from_geom(self.geom_true, unit="m2 s")
             else:
-                self.maps[name] = Map.from_geom(self.geom, unit="")
+                maps[name] = Map.from_geom(self.geom, unit="")
 
         for obs in observations:
+            cutout = self.geom.cutout()
+
             try:
-                self._process_obs(obs, selection)
+                maps_obs = self._process_obs(obs, selection)
             except NoOverlapError:
                 log.info(
                     "Skipping observation {}, no overlap with map.".format(obs.obs_id)
                 )
                 continue
+
+            # Stack observation maps to total
+            for name in selection:
+                data = maps_obs[name].quantity.to_value(maps[name].unit)
+
+                if name == "exposure":
+                    self.maps[name].fill_by_coord(coords_etrue, data)
+                else:
+                    self.maps[name].fill_by_coord(coords, data)
+
 
         return self.maps
 
@@ -116,13 +305,7 @@ class MapMaker:
             exclusion_mask=exclusion_mask,
         ).run(selection)
 
-        # Stack observation maps to total
-        for name in selection:
-            data = maps_obs[name].quantity.to_value(self.maps[name].unit)
-            if name == "exposure":
-                self.maps[name].fill_by_coord(coords_etrue, data)
-            else:
-                self.maps[name].fill_by_coord(coords, data)
+        return maps_obs
 
     def make_images(self, spectrum=None, keepdims=False):
         """Create images by summing over the energy axis.
