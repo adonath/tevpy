@@ -221,10 +221,7 @@ class SkyModel(SkyModelBase):
 
     @property
     def position(self):
-        from astropy.coordinates import SkyCoord
-        lon = self.spatial_model.parameters["lon_0"].quantity
-        lat = self.spatial_model.parameters["lat_0"].quantity
-        return SkyCoord(lon, lat, frame="galactic")
+        return self.spatial_model.position
 
 
 class CompoundSkyModel(SkyModelBase):

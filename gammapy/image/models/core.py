@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import astropy.units as u
 from astropy.coordinates.angle_utilities import angular_separation
-from astropy.coordinates import Angle, Longitude, Latitude
+from astropy.coordinates import Angle, Longitude, Latitude, SkyCoord
 from ...utils.fitting import Parameter, Parameters, Model
 from ...maps import Map
 
@@ -23,6 +23,8 @@ log = logging.getLogger(__name__)
 
 class SkySpatialModel(Model):
     """Sky spatial model base class."""
+    def __init__(self, frame):
+        self.frame = frame
 
     def __call__(self, lon, lat):
         """Call evaluate method"""
@@ -31,6 +33,12 @@ class SkySpatialModel(Model):
             kwargs[par.name] = par.quantity
 
         return self.evaluate(lon, lat, **kwargs)
+
+    @property
+    def position(self):
+        lon = self.parameters["lon_0"].quantity
+        lat = self.parameters["lat_0"].quantity
+        return SkyCoord(lon, lat, frame="galactic")
 
 
 class SkyPointSource(SkySpatialModel):

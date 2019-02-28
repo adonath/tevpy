@@ -76,19 +76,11 @@ class MapDataset:
         evaluators = []
 
         for component in self.model.skymodels:
-            #TODO: lookup correct PSF for this component
-            width = np.max(self.psf.psf_kernel_map.geom.width) * u.deg + component.evaluation_radius
-
-            exposure = self.exposure.cutout(position=component.position, width=width)
-
-            # TODO: optionally apply oversampling
-            # exposure = self.exposure.upsample()
-
-            # TODO: lookup correct Edisp for this component
-            evaluator = MapEvaluator(model=component, exposure=exposure, psf=self.psf, edisp=self.edisp)
+            evaluator = MapEvaluator(component)
             evaluators.append(evaluator)
 
         self._evaluators = evaluators
+
 
     def npred(self):
         """Returns npred map (model + background)"""
@@ -98,6 +90,9 @@ class MapDataset:
             npred_total = Map.from_geom(self.counts.geom)
 
         for evaluator in self._evaluators:
+            if evaluator.needs_update:
+                evaluator.update(self.exposure, self.psf, self.edisp)
+
             npred = evaluator.compute_npred()
             npred_total.fill_by_coord(evaluator.coords, npred.data)
 
@@ -158,9 +153,7 @@ class MapEvaluator:
         self.psf = psf
         self.edisp = edisp
 
-        self.parameters = Parameters(self.model.parameters.parameters)
-
-    @lazyproperty
+    @property
     def geom(self):
         """This will give the energy axes in e_true"""
         return self.exposure.geom
@@ -197,22 +190,15 @@ class MapEvaluator:
         lon, lat = self.geom_image.get_coord()
         return (u.Quantity(lon, "deg", copy=False), u.Quantity(lat, "deg", copy=False))
 
-    @lazyproperty
-    def lon(self):
-        return self.lon_lat[0]
-
-    @lazyproperty
-    def lat(self):
-        return self.lon_lat[1]
-
     @property
     def coords(self):
         """Return evaluator coords"""
+        lon, lat = self.lon_lat
         if self.edisp:
             energy = self.edisp.e_reco.nodes[:, np.newaxis, np.newaxis]
         else:
             energy = self.energy_center
-        return {"lon": self.lon.value, "lat": self.lat.value, "energy": energy}
+        return {"lon": lon.value, "lat": lat.value, "energy": energy}
 
     @lazyproperty
     def solid_angle(self):
@@ -226,6 +212,20 @@ class MapEvaluator:
         de = self.energy_bin_width
         return omega * de
 
+    def update(self, exposure, psf, edisp):
+        # TODO: lookup correct PSF for this component
+        width = np.max(psf.psf_kernel_map.geom.width) * u.deg + self.model.evaluation_radius
+
+        self.exposure = exposure.cutout(position=self.model.position, width=width)
+
+        # TODO: lookup correct Edisp for this component
+        self.edisp = edisp
+        self.psf = psf
+
+        # Reset cached quantities
+        for cached_property in ["lon_lat", "solid_angle", "bin_volume"]:
+            self.__dict__.pop(cached_property, None)
+
     def compute_dnde(self):
         """Compute model differential flux at map pixel centers.
 
@@ -235,8 +235,8 @@ class MapEvaluator:
             Sky cube with data filled with evaluated model values.
             Units: ``cm-2 s-1 TeV-1 deg-2``
         """
-        coord = (self.lon, self.lat, self.energy_center)
-        dnde = self.model.evaluate(*coord)
+        lon, lat = self.lon_lat
+        dnde = self.model.evaluate(lon, lat, self.energy_center)
         return dnde
 
     def compute_flux(self):
@@ -302,3 +302,14 @@ class MapEvaluator:
         if self.edisp is not None:
             npred = self.apply_edisp(npred)
         return npred
+
+    @property
+    def needs_update(self):
+        """"""
+        if self.exposure is None:
+            update = True
+        else:
+            position = self.model.position
+            separation = self.exposure.geom.center_skydir.separation(position)
+            update = separation > 0.5 * u.deg
+        return update
