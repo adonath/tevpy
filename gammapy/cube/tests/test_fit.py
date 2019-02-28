@@ -52,8 +52,8 @@ def background(geom):
 
 
 def edisp(geom, geom_etrue):
-    e_true = geom_etrue.get_axis_by_name("energy").edges
-    e_reco = geom.get_axis_by_name("energy").edges
+    e_true = geom_etrue.get_axis_by_name("energy").edges * u.TeV
+    e_reco = geom.get_axis_by_name("energy").edges * u.TeV
     return EnergyDispersion.from_diagonal_response(e_true=e_true, e_reco=e_reco)
 
 

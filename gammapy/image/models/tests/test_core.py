@@ -21,7 +21,8 @@ def test_sky_point_source():
     assert val.unit == "deg-2"
     assert_allclose(val.sum().value, 1)
     radius = model.evaluation_radius
-    assert_allclose(radius, 4)
+    assert radius.unit == "deg"
+    assert_allclose(radius.value, 0)
 
 
 def test_sky_gaussian():
