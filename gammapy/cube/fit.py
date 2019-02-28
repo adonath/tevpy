@@ -209,7 +209,7 @@ class MapEvaluator:
     def coords(self):
         """Return evaluator coords"""
         if self.edisp:
-            energy = self.edisp.e_reco.nodes[:, np.newaxis, np.newaxis] * self.energy_edges.unit
+            energy = self.edisp.e_reco.nodes[:, np.newaxis, np.newaxis]
         else:
             energy = self.energy_center
         return {"lon": self.lon.value, "lat": self.lat.value, "energy": energy}

@@ -354,6 +354,26 @@ class SkyDiffuseCube(SkyModelBase):
         """A shallow copy"""
         return copy.copy(self)
 
+    @property
+    def evaluation_radius(self):
+        r"""Returns the effective radius of the sky region where the model evaluates to non-zero.
+        For a SkyDiffuseCube source, we fix it to the maximal dimension of the map.
+
+        Returns
+        -------
+        radius : `~astropy.coordinates.Angle`
+            Radius in angular units.
+
+        """
+        radius = np.max(self.map.geom.width)
+        return radius * u.deg
+
+    @property
+    def position(self):
+        """Return center"""
+        return self.map.geom.center_skydir
+
+
 
 class BackgroundModel(Model):
     """Background model
