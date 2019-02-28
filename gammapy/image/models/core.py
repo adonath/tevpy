@@ -58,15 +58,14 @@ class SkyPointSource(SkySpatialModel):
     @property
     def evaluation_radius(self):
         """Returns the effective radius of the sky region where the model evaluates to non-zero.
-        For a point source, we fix it to 4 pixels.
 
         Returns
         -------
-        pix_radius : `int`
+        radius : `~astropy.units.Quantity`
             Radius in pixel
         """
-        pix_radius = 4
-        return pix_radius
+        radius = 0 * u.deg
+        return radius
 
     @staticmethod
     def evaluate(lon, lat, lon_0, lat_0):

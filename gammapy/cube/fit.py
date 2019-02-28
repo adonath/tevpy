@@ -5,6 +5,7 @@ import astropy.units as u
 from ..utils.fitting import Fit, Parameters
 from ..stats import cash
 from ..maps import Map, MapAxis
+from .models import SkyModels, SkyModel
 
 __all__ = ["MapEvaluator", "MapDataset"]
 
@@ -45,6 +46,9 @@ class MapDataset:
         if mask is not None and mask.data.dtype != np.dtype("bool"):
             raise ValueError("mask data must have dtype bool")
 
+        if isinstance(model, SkyModel):
+            model = SkyModels([model])
+
         self.model = model
         self.counts = counts
         self.exposure = exposure
@@ -60,24 +64,44 @@ class MapDataset:
         else:
             self.parameters = Parameters(self.model.parameters.parameters)
 
-        self.evaluator = MapEvaluator(
-            model=self.model, exposure=exposure, psf=self.psf, edisp=self.edisp
-        )
+        self.setup()
 
     @property
     def data_shape(self):
         """Shape of the counts data"""
         return self.counts.data.shape
 
+    def setup(self):
+        """Setup `MapDataset`"""
+        evaluators = []
+
+        for component in self.model.skymodels:
+            #TODO: lookup correct PSF for this component
+            width = np.max(self.psf.psf_kernel_map.geom.width) * u.deg + component.evaluation_radius
+
+            exposure = self.exposure.cutout(position=component.position, width=width)
+
+            # TODO: optionally apply oversampling
+            # exposure = self.exposure.upsample()
+
+            # TODO: lookup correct Edisp for this component
+            evaluator = MapEvaluator(model=component, exposure=exposure, psf=self.psf, edisp=self.edisp)
+            evaluators.append(evaluator)
+
+        self._evaluators = evaluators
+
     def npred(self):
         """Returns npred map (model + background)"""
-        model_npred = self.evaluator.compute_npred()
-        back_npred = self.background_model.evaluate()
-        total_npred = model_npred.data + back_npred.data
-        return back_npred.copy(data=total_npred)
-        # TODO: return model_npred + back_npred
-        # There is some bug: edisp.e_reco.unit is dimensionless
-        # thus map arithmetic does not work.
+        if self.background_model:
+            npred_total = self.background_model.evaluate()
+        else:
+            npred_total = Map.from_geom(self.counts.geom)
+
+        for evaluator in self._evaluators:
+            npred = evaluator.compute_npred()
+            npred_total.fill_by_coord(evaluator.coords, npred.data)
+
+        return npred_total
 
     def likelihood_per_bin(self):
         """Likelihood per bin given the current model parameters"""
@@ -180,6 +204,15 @@ class MapEvaluator:
     @lazyproperty
     def lat(self):
         return self.lon_lat[1]
+
+    @property
+    def coords(self):
+        """Return evaluator coords"""
+        if self.edisp:
+            energy = self.edisp.e_reco.nodes[:, np.newaxis, np.newaxis] * self.energy_edges.unit
+        else:
+            energy = self.energy_center
+        return {"lon": self.lon.value, "lat": self.lat.value, "energy": energy}
 
     @lazyproperty
     def solid_angle(self):

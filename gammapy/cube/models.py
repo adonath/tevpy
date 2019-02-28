@@ -214,6 +214,18 @@ class SkyModel(SkyModelBase):
         val_spectral = self.spectral_model(energy)  # pylint:disable=not-callable
         return val_spatial * val_spectral
 
+    @property
+    def evaluation_radius(self):
+        """Model evaluation radius"""
+        return self.spatial_model.evaluation_radius
+
+    @property
+    def position(self):
+        from astropy.coordinates import SkyCoord
+        lon = self.spatial_model.parameters["lon_0"].quantity
+        lat = self.spatial_model.parameters["lat_0"].quantity
+        return SkyCoord(lon, lat, frame="galactic")
+
 
 class CompoundSkyModel(SkyModelBase):
     """Represents the algebraic combination of two
