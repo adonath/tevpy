@@ -212,9 +212,29 @@ class MapEvaluator:
         de = self.energy_bin_width
         return omega * de
 
+    @property
+    def needs_update(self):
+        """"""
+        if self.exposure is None:
+            update = True
+        else:
+            position = self.model.position
+            separation = self.exposure.geom.center_skydir.separation(position)
+            # TODO: probably this should be configurable
+            update = separation > 0.2 * u.deg
+        return update
+
+
     def update(self, exposure, psf, edisp):
+        """Updated MapEvaluator, based on the currecnt position of the model component.
+
+        Parameters
+        ----------
+        exposure : `Map`
+
+        """
         # TODO: lookup correct PSF for this component
-        width = np.max(psf.psf_kernel_map.geom.width) * u.deg + self.model.evaluation_radius
+        width = np.max(psf.psf_kernel_map.geom.width) * u.deg + 2 * self.model.evaluation_radius
 
         self.exposure = exposure.cutout(position=self.model.position, width=width)
 
@@ -302,14 +322,3 @@ class MapEvaluator:
         if self.edisp is not None:
             npred = self.apply_edisp(npred)
         return npred
-
-    @property
-    def needs_update(self):
-        """"""
-        if self.exposure is None:
-            update = True
-        else:
-            position = self.model.position
-            separation = self.exposure.geom.center_skydir.separation(position)
-            update = separation > 0.5 * u.deg
-        return update

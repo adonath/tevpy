@@ -85,18 +85,6 @@ def mask(geom, sky_model):
     return WcsNDMap(geom=geom, data=data)
 
 
-def counts(sky_model, exposure, background, psf, edisp):
-    """This computes the total npred"""
-    npred = MapDataset(
-        model=sky_model,
-        exposure=exposure,
-        background_model=background,
-        psf=psf,
-        edisp=edisp,
-    ).npred()
-    return npred
-
-
 @requires_dependency("iminuit")
 @requires_data("gammapy-data")
 def test_map_fit(sky_model):
@@ -112,31 +100,29 @@ def test_map_fit(sky_model):
     psf_map = psf(geom_t)
     edisp_map = edisp(geom_r, geom_t)
     exposure_map = exposure(geom_t)
-    counts_map_1 = counts(sky_model, exposure_map, background_model_1, psf_map, edisp_map)
-    counts_map_2 = counts(sky_model, exposure_map, background_model_2, psf_map, edisp_map)
 
     mask_map = mask(geom_r, sky_model)
     sky_model.parameters["sigma"].frozen = True
 
     dataset_1 = MapDataset(
         model=sky_model,
-        counts=counts_map_1,
         exposure=exposure_map,
         mask=mask_map,
         psf=psf_map,
         edisp=edisp_map,
         background_model=background_model_1,
     )
+    dataset_1.counts = dataset_1.npred()
 
     dataset_2 = MapDataset(
         model=sky_model,
-        counts=counts_map_2,
         exposure=exposure_map,
         mask=mask_map,
         psf=psf_map,
         edisp=edisp_map,
         background_model=background_model_2,
     )
+    dataset_2.counts = dataset_2.npred()
 
     background_model_1.parameters["norm"].value = 0.4
     background_model_2.parameters["norm"].value = 0.9
@@ -182,8 +168,17 @@ def test_map_fit_one_energy_bin(sky_model):
     psf_map = psf(geom_r)
     edisp_map = edisp(geom_r, geom_r)
     exposure_map = exposure(geom_r)
-    counts_map = counts(sky_model, exposure_map, background_model, psf_map, edisp_map)
     mask_map = mask(geom_r, sky_model)
+
+    dataset = MapDataset(
+        model=sky_model,
+        exposure=exposure_map,
+        mask=mask_map,
+        psf=psf_map,
+        edisp=edisp_map,
+        background_model=background_model,
+    )
+    dataset.counts = dataset.npred()
 
     sky_model.parameters["index"].value = 3.0
     sky_model.parameters["index"].frozen = True
@@ -191,15 +186,6 @@ def test_map_fit_one_energy_bin(sky_model):
     sky_model.parameters["sigma"].value = 0.21
     background_model.parameters["norm"].frozen = True
 
-    dataset = MapDataset(
-        model=sky_model,
-        counts=counts_map,
-        exposure=exposure_map,
-        mask=mask_map,
-        psf=psf_map,
-        edisp=edisp_map,
-        background_model=background_model,
-    )
     fit = Fit(dataset)
     result = fit.run()
 
