@@ -347,6 +347,11 @@ class SkyDiffuseCube(SkyModelBase):
         norm = self.parameters["norm"].value
         return u.Quantity(norm * val, self.map.unit, copy=False)
 
+    def evaluate_cached(self, val):
+        """Evaluate model."""
+        norm = self.parameters["norm"].value
+        return u.Quantity(norm * val, self.map.unit, copy=False)
+
     def copy(self):
         """A shallow copy"""
         return copy.copy(self)
@@ -403,7 +408,7 @@ class BackgroundModel(Model):
         self.map = background
         self.parameters = Parameters(
             [
-                Parameter("norm", norm, unit=""),
+                Parameter("norm", norm, unit="", min=0),
                 Parameter("tilt", tilt, unit="", frozen=True),
                 Parameter("reference", reference, frozen=True),
             ]
@@ -424,3 +429,50 @@ class BackgroundModel(Model):
         tilt_factor = np.power((self.energy_center / reference).to(""), -tilt)
         back_values = norm * self.map.data * tilt_factor.value
         return self.map.copy(data=back_values)
+
+    @classmethod
+    def from_skymodel(cls, skymodel, exposure, edisp=None, psf=None, **kwargs):
+        """Create background model from sky model, by applying IRFs.
+
+        Parameters
+        ----------
+        skymodel : `SkyModel` or `SkyDiffuseCube`
+            Sky model.
+        exposure : `Map`
+            Exposure map.
+        edisp : `EnergyDispersion`
+            Energy dispersion.
+        psf : `PSFKernel`
+            PSF to apply.
+
+        """
+        from .fit import MapEvaluator
+        evaluator = MapEvaluator(model=skymodel, exposure=exposure, edisp=edisp, psf=psf)
+        background = evaluator.compute_npred()
+        return cls(background=background, **kwargs)
+
+
+class BackgroundModels:
+    """Background models.
+
+    Parameters
+    ----------
+    models : list of `BackgroundModel`
+        List of background models.
+    """
+    def __init__(self, models):
+        self.models = models
+        pars = []
+        for model in models:
+            for p in model.parameters:
+                pars.append(p)
+        self.parameters = Parameters(pars)
+
+    def evaluate(self):
+        """Evaluate background models."""
+        for idx, model in enumerate(self.models):
+            if idx == 0:
+                vals = model.evaluate()
+            else:
+                vals += model.evaluate()
+        return vals
