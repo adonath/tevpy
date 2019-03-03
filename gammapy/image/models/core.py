@@ -60,7 +60,7 @@ class SkyPointSource(SkySpatialModel):
 
     def __init__(self, lon_0, lat_0):
         self.parameters = Parameters(
-            [Parameter("lon_0", Longitude(lon_0)), Parameter("lat_0", Latitude(lat_0))]
+            [Parameter("lon_0", Longitude(lon_0).wrap_at("180d")), Parameter("lat_0", Latitude(lat_0))]
         )
 
     @property
@@ -132,7 +132,7 @@ class SkyGaussian(SkySpatialModel):
     def __init__(self, lon_0, lat_0, sigma):
         self.parameters = Parameters(
             [
-                Parameter("lon_0", Longitude(lon_0)),
+                Parameter("lon_0", Longitude(lon_0).wrap_at("180d")),
                 Parameter("lat_0", Latitude(lat_0)),
                 Parameter("sigma", Angle(sigma), min=0),
             ]
@@ -188,7 +188,7 @@ class SkyDisk(SkySpatialModel):
     def __init__(self, lon_0, lat_0, r_0):
         self.parameters = Parameters(
             [
-                Parameter("lon_0", Longitude(lon_0)),
+                Parameter("lon_0", Longitude(lon_0).wrap_at("180d")),
                 Parameter("lat_0", Latitude(lat_0)),
                 Parameter("r_0", Angle(r_0)),
             ]
@@ -252,7 +252,7 @@ class SkyShell(SkySpatialModel):
     def __init__(self, lon_0, lat_0, radius, width):
         self.parameters = Parameters(
             [
-                Parameter("lon_0", Longitude(lon_0)),
+                Parameter("lon_0", Longitude(lon_0).wrap_at("180d")),
                 Parameter("lat_0", Latitude(lat_0)),
                 Parameter("radius", Angle(radius)),
                 Parameter("width", Angle(width)),

@@ -347,11 +347,6 @@ class SkyDiffuseCube(SkyModelBase):
         norm = self.parameters["norm"].value
         return u.Quantity(norm * val, self.map.unit, copy=False)
 
-    def evaluate_cached(self, val):
-        """Evaluate model."""
-        norm = self.parameters["norm"].value
-        return u.Quantity(norm * val, self.map.unit, copy=False)
-
     def copy(self):
         """A shallow copy"""
         return copy.copy(self)
