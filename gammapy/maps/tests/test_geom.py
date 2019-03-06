@@ -266,3 +266,14 @@ def test_squash():
     assert_allclose(axis.edges[0], ax_sq.edges[0])
     assert_allclose(axis.edges[-1], ax_sq.edges[1])
     assert_allclose(ax_sq.center, 1.5)
+
+
+def test_mapaxis_one_bin():
+    axis = MapAxis.from_nodes(nodes=[10.], unit='TeV', name='test')
+    assert_allclose(axis.coord_to_pix(10 * u.TeV), 0)
+    assert_allclose(axis.coord_to_pix(12 * u.TeV), 0)
+
+    assert_allclose(axis.coord_to_idx(10 * u.TeV), 1)
+    assert_allclose(axis.coord_to_idx(10.000001 * u.TeV), -1)
+    assert_allclose(axis.coord_to_idx(9.9999999 * u.TeV), -1)
+    assert_allclose(axis.pix_to_coord(0), 10)

@@ -272,14 +272,25 @@ def bin_to_val(edges, bins):
     ctr = 0.5 * (edges[1:] + edges[:-1])
     return ctr[bins]
 
+def _check_edges(edges):
+    if len(edges) == 1:
+        edges = [edges[0], edges[0]]
+        pixs = [0., 0.]
+        kind = "nearest"
+    else:
+        kind = "linear"
+        pixs = np.arange(len(edges), dtype=float)
+    return edges, pixs, kind
+
 
 def coord_to_pix(edges, coord, interp="lin"):
     """Convert axis coordinates to pixel coordinates using the chosen
     interpolation scheme."""
     scale = interpolation_scale(interp)
+    edges, pixs, kind = _check_edges(edges)
 
     interp_fn = interp1d(
-        scale(edges), np.arange(len(edges), dtype=float), fill_value="extrapolate"
+        scale(edges), pixs, fill_value="extrapolate", kind=kind,
     )
 
     return interp_fn(scale(coord))
@@ -289,9 +300,10 @@ def pix_to_coord(edges, pix, interp="lin"):
     """Convert pixel coordinates to grid coordinates using the chosen
     interpolation scheme."""
     scale = interpolation_scale(interp)
+    edges, pixs, kind = _check_edges(edges)
 
     interp_fn = interp1d(
-        np.arange(len(edges), dtype=float), scale(edges), fill_value="extrapolate"
+        pixs, scale(edges), fill_value="extrapolate", kind=kind,
     )
 
     return scale.inverse(interp_fn(pix))
