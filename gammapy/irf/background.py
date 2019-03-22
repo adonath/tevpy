@@ -6,6 +6,7 @@ from astropy.io import fits
 import astropy.units as u
 from ..utils.nddata import NDDataArray, BinnedDataAxis
 from ..utils.scripts import make_path
+from ..utils.interpolation import ScaledRegularGridInterpolator
 
 __all__ = ["Background3D", "Background2D"]
 
@@ -169,6 +170,33 @@ class Background3D:
         )
         return values
 
+
+    @property
+    def _interpolate_integral(self):
+        axis_idx = [_.name for _ in self.data.axes].index("energy")
+        energy_axes = self.data.axes[axis_idx]
+
+        # the assumption here is, that the bkg model was computed by dividing by the bin width
+        values = (self.data.data * energy_axes.bin_width[:, np.newaxis, np.newaxis]).to("s-1 sr-1")
+
+        # add a zero entry, because the integral is zero at the minimal energy
+        values_pad = np.insert(values, 0, 0, axis=axis_idx)
+        values_cum = np.cumsum(values_pad, axis=axis_idx)
+
+        values_scaled = values_cum.max(axis=axis_idx) - values_cum
+
+        energy = energy_axes.bins
+        fov_lon = self.data.axes[1].lin_center()
+        fov_lat = self.data.axes[2].lin_center()
+        points = (energy, fov_lon, fov_lat)
+
+        return ScaledRegularGridInterpolator(
+            points=points,
+            values=values_scaled,
+            values_scale="log",
+            points_scale=["log", "lin", "lin"],
+        )
+
     def evaluate_integrate(
         self, fov_lon, fov_lat, energy_reco, method="linear", **kwargs
     ):
@@ -189,10 +217,12 @@ class Background3D:
         array : `~astropy.units.Quantity`
             Returns 2D array with axes offset
         """
-        from ..spectrum.utils import _trapz_loglog
+        e_min, e_max = energy_reco[:-1], energy_reco[1:]
 
-        data = self.evaluate(fov_lon, fov_lat, energy_reco, method=method)
-        return _trapz_loglog(data, energy_reco, axis=0, intervals=True)
+        interp = self._interpolate_integral
+        int_min = interp((e_min, fov_lon, fov_lat), method=method)
+        int_max = interp((e_max, fov_lon, fov_lat), method=method)
+        return int_min - int_max
 
     def to_2d(self):
         """Convert to `Background2D`.
