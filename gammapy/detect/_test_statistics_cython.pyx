@@ -5,6 +5,7 @@ cimport numpy as np
 cimport cython
 
 cdef np.float_t FLUX_FACTOR = 1e-12
+ctypedef np.uint8_t uint8
 
 
 cdef extern from "math.h":
@@ -141,10 +142,11 @@ def _cash_cython(np.ndarray[np.float_t, ndim=2] counts,
                 cash[j, i] = 0
     return cash
 
+
 @cython.cdivision(True)
 @cython.boundscheck(False)
-def _cash_sum_cython(np.ndarray[np.float_t, ndim=2] counts,
-                     np.ndarray[np.float_t, ndim=2] model):
+def cash_sum_sparse(np.ndarray[np.float_t, ndim=1] counts,
+                    np.ndarray[np.float_t, ndim=1] model):
     """Summed cash fit statistics.
 
     Parameters
@@ -155,11 +157,11 @@ def _cash_sum_cython(np.ndarray[np.float_t, ndim=2] counts,
         Source template (multiplied with exposure).
     """
     cdef np.float_t sum = 0
-    cdef unsigned int i, j, ni, nj
-    ni = counts.shape[1]
-    nj = counts.shape[0]
-    for j in range(nj):
-        for i in range(ni):
-            if model[j, i] > 0:
-                sum += model[j, i] - counts[j, i] * log(model[j, i])
+    cdef unsigned int i, ni
+    ni = counts.shape[0]
+    for i in range(ni):
+        if model[i] > 0:
+            sum += model[i]
+            if counts[i] > 0:
+                sum -= counts[i] * log(model[i])
     return 2 * sum

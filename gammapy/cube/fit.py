@@ -7,6 +7,7 @@ from ..utils.fitting import Parameters
 from ..stats import cash, cstat
 from ..maps import Map, MapAxis
 from .models import SkyModel, SkyModels
+from ..detect._test_statistics_cython import cash_sum_sparse
 
 __all__ = ["MapEvaluator", "MapDataset"]
 
@@ -78,6 +79,10 @@ class MapDataset:
             raise ValueError(
                 "Not a valid fit statistic. Choose between 'cash' and 'cstat'."
             )
+
+    @lazyproperty
+    def _counts_data(self):
+        return self.counts.data.astype(float).ravel()
 
     @property
     def model(self):
@@ -165,15 +170,18 @@ class MapDataset:
         mask : `~numpy.ndarray`
             Mask to be combined with the dataset mask.
         """
+        counts = self._counts_data
+        npred = self.npred().data.ravel()
+
         if self.mask is None and mask is None:
-            stat = self.likelihood_per_bin()
+            return cash_sum_sparse(counts, npred)
         elif self.mask is None:
-            stat = self.likelihood_per_bin()[mask]
+            mask = mask.ravel()
         elif mask is None:
-            stat = self.likelihood_per_bin()[self.mask.data]
+            mask = self.mask.data.ravel()
         else:
-            stat = self.likelihood_per_bin()[mask & self.mask.data]
-        return np.sum(stat, dtype=np.float64)
+            mask = (mask & self.mask.data).ravel()
+        return cash_sum_sparse(counts[mask], npred[mask])
 
 
 class MapEvaluator:

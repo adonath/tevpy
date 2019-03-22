@@ -12,7 +12,7 @@ from ..utils.array import shape_2N, symmetric_crop_pad_width
 from ._test_statistics_cython import (
     _cash_cython,
     _amplitude_bounds_cython,
-    _cash_sum_cython,
+    cash_sum_sparse,
     _f_cash_root_cython,
     _x_best_leastsq,
 )
@@ -65,7 +65,8 @@ def f_cash(x, counts, background, model):
     model : `~numpy.ndarray`
         Source template (multiplied with exposure).
     """
-    return _cash_sum_cython(counts, background + x * FLUX_FACTOR * model)
+    npred = background + x * FLUX_FACTOR * model
+    return cash_sum_sparse(counts.ravel(), npred.ravel())
 
 
 class TSMapEstimator:
