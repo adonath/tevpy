@@ -306,7 +306,7 @@ class SkyEllipse(SkySpatialModel):
 
     __slots__ = ["frame", "lon_0", "lat_0", "semi_major", "e", "theta", "_offset_by"]
 
-    def __init__(self, lon_0, lat_0, semi_major, e, theta, frame="galactic"):
+    def __init__(self, lon_0, lat_0, semi_major, e, theta, frame="galactic", oversample_factor=4):
         try:
             from astropy.coordinates.angle_utilities import offset_by
 
@@ -322,6 +322,7 @@ class SkyEllipse(SkySpatialModel):
         self.semi_major = Parameter("semi_major", Angle(semi_major))
         self.e = Parameter("e", e, min=0, max=1)
         self.theta = Parameter("theta", Angle(theta))
+        self.oversample_factor = oversample_factor
 
         super().__init__([self.lon_0, self.lat_0, self.semi_major, self.e, self.theta])
 

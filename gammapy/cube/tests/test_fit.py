@@ -153,6 +153,7 @@ def test_map_fit(sky_model):
     fit = Fit([dataset_1, dataset_2])
     result = fit.run()
 
+    raise ValueError
     assert result.success
     assert "minuit" in repr(result)
 

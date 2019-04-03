@@ -8,6 +8,7 @@ from ..utils.fitting import Parameters, Dataset
 from ..stats import cash, cstat
 from ..maps import Map, MapAxis
 from .models import SkyModel, SkyModels
+from .psf_kernel import PSFKernel
 
 __all__ = ["MapEvaluator", "MapDataset"]
 
@@ -202,6 +203,7 @@ class MapEvaluator:
         "energy_bin_width",
         "energy_edges",
         "energy_center",
+        "coords_reco",
     ]
 
     def __init__(
@@ -211,6 +213,7 @@ class MapEvaluator:
         self.exposure = exposure
         self.psf = psf
         self.edisp = edisp
+        self.oversample_factor = getattr(model.spatial_model, "oversample_factor", 1)
 
         if evaluation_mode not in {"local", "global"}:
             raise ValueError("Invalid evaluation_mode: {!r}".format(evaluation_mode))
@@ -232,7 +235,12 @@ class MapEvaluator:
             unit=self.edisp.e_reco.unit,
             interp=self.edisp.e_reco.interpolation_mode,
         )
-        return self.geom_image.to_cube(axes=[e_reco_axis])
+        geom_reco = self.geom_image.downsample(factor=self.oversample_factor)
+        return geom_reco.to_cube(axes=[e_reco_axis])
+
+    @lazyproperty
+    def coords_reco(self):
+        return self.geom_reco.get_coord()
 
     @property
     def geom_image(self):
@@ -340,23 +348,29 @@ class MapEvaluator:
         self.edisp = edisp
 
         # TODO: lookup correct PSF for this component
-        self.psf = psf
+        psf_kernel_map = psf.psf_kernel_map.upsample(
+            factor=self.oversample_factor,
+            preserve_counts=False
+        )
+        self.psf = PSFKernel(psf_kernel_map)
 
         if self.evaluation_mode == "local":
             width = np.max(psf.psf_kernel_map.geom.width) + 2 * (
                 self.model.evaluation_radius + CUTOUT_MARGIN
             )
             try:
-                self.exposure = exposure.cutout(position=self.model.position, width=width)
+                exposure_cutout = exposure.cutout(position=self.model.position, width=width)
             except NoOverlapError:
                 raise ValueError("Position {} of model component is outside the image boundaries."
                                  " Please check the starting values or position parameter boundaries of the model.".format(self.model.position))
+
+            self.exposure = exposure_cutout.upsample(factor=self.oversample_factor, preserve_counts=False)
 
             # Reset cached quantities
             for cached_property in self._cached_properties:
                 self.__dict__.pop(cached_property, None)
 
-            self.coords_idx = geom.coord_to_idx(self.coords)[::-1]
+            self.coords_idx = geom.coord_to_idx(self.coords_reco)[::-1]
 
         else:
             self.exposure = exposure
@@ -394,7 +408,8 @@ class MapEvaluator:
 
     def apply_psf(self, npred):
         """Convolve npred cube with PSF"""
-        return npred.convolve(self.psf)
+        convolved = npred.convolve(self.psf)
+        return convolved.downsample(self.oversample_factor, preserve_counts=True)
 
     def apply_edisp(self, npred):
         """Convolve map data with energy dispersion.
