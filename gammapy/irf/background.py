@@ -183,7 +183,7 @@ class Background3D:
         values_pad = np.insert(values, 0, 0, axis=axis_idx)
         values_cum = np.cumsum(values_pad, axis=axis_idx)
 
-        values_scaled = values_cum.max(axis=axis_idx) - values_cum
+        values_scaled = (values_cum.max(axis=axis_idx) - values_cum) + 1 * u.Unit("s-1 sr-1")
 
         energy = energy_axes.bins
         fov_lon = self.data.axes[1].lin_center()
