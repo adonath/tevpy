@@ -162,14 +162,14 @@ class SkyModel(SkyModelBase):
 
     __slots__ = ["name", "_spatial_model", "_spectral_model"]
 
-    def __init__(self, spatial_model, spectral_model, name="SkyModel"):
+    def __init__(self, spatial_model, spectral_model, name="source"):
         self.name = name
         self._spatial_model = spatial_model
         self._spectral_model = spectral_model
         parameters = (
             spatial_model.parameters.parameters + spectral_model.parameters.parameters
         )
-        super().__init__(parameters)
+        super().__init__(parameters, name=name)
 
     @property
     def spatial_model(self):
@@ -331,7 +331,7 @@ class BackgroundModel(Model):
 
     __slots__ = ["map", "norm", "tilt", "reference"]
 
-    def __init__(self, background, norm=1, tilt=0, reference="1 TeV"):
+    def __init__(self, background, norm=1, tilt=0, reference="1 TeV", name="background"):
         axis = background.geom.get_axis_by_name("energy")
         if axis.node_type != "edges":
             raise ValueError('Need an integrated map, energy axis node_type="edges"')
@@ -341,7 +341,7 @@ class BackgroundModel(Model):
         self.tilt = Parameter("tilt", tilt, unit="", frozen=True)
         self.reference = Parameter("reference", reference, frozen=True)
 
-        super().__init__([self.norm, self.tilt, self.reference])
+        super().__init__([self.norm, self.tilt, self.reference], name=name)
 
     @property
     def energy_center(self):

@@ -45,13 +45,15 @@ class Parameter:
         Frozen? (used in fitting)
     """
 
-    __slots__ = ["_name", "_factor", "_scale", "_unit", "_min", "_max", "_frozen"]
+    __slots__ = ["_name", "_factor", "_scale", "_unit", "_min", "_max", "_frozen", "model", "dataset"]
 
     def __init__(
-        self, name, factor, unit="", scale=1, min=np.nan, max=np.nan, frozen=False
+        self, name, factor, unit="", scale=1, min=np.nan, max=np.nan, frozen=False, model=None, dataset=None,
     ):
-        self.name = name
+        self._name = name
         self.scale = scale
+        self.model = model
+        self.dataset = dataset
 
         if isinstance(factor, u.Quantity) or isinstance(factor, str):
             val = u.Quantity(factor)
@@ -69,10 +71,6 @@ class Parameter:
     def name(self):
         """Name (str)."""
         return self._name
-
-    @name.setter
-    def name(self, val):
-        self._name = check_type(val, "str")
 
     @property
     def factor(self):
@@ -240,16 +238,16 @@ class Parameters:
         see `~gammapy.utils.modeling.Parameter.autoscale`
     """
 
-    def __init__(self, parameters=None, covariance=None, apply_autoscale=True):
+    def __init__(self, parameters=None, covariance=None, apply_autoscale=True, model=None, dataset=None):
         if parameters is None:
             parameters = []
 
-        self._parameters = self._filter_unique_parameters(parameters)
+        self._parameters = self._filter_unique_parameters(parameters, model, dataset)
         self.covariance = covariance
         self.apply_autoscale = apply_autoscale
 
     @staticmethod
-    def _filter_unique_parameters(parameters):
+    def _filter_unique_parameters(parameters, model, dataset):
         """Filter unique parameters from a list of parameters"""
         unique_parameters = []
 
