@@ -553,7 +553,7 @@ class SourceCatalogObjectHGPS(SourceCatalogObject):
         else:
             spatial_model = self.spatial_model
             spectral_model = self.spectral_model(which=which)
-            return SkyModel(spatial_model, spectral_model)
+            return SkyModel(spatial_model, spectral_model, name=self.name)
 
     @property
     def flux_points(self):

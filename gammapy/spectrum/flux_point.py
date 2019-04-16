@@ -1060,11 +1060,12 @@ class FluxPointsDataset(Dataset):
         print(result.model)
     """
 
-    def __init__(self, model, data, mask=None, likelihood="chi2"):
+    def __init__(self, model, data, mask=None, likelihood="chi2", name="fp-dataset"):
         self.model = model
         self.data = data
         self.mask = mask
         self.parameters = model.parameters
+        self._name = name
 
         if likelihood in ["chi2", "chi2assym"]:
             self._likelihood = likelihood

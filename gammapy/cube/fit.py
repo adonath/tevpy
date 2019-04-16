@@ -83,16 +83,6 @@ class MapDataset(Dataset):
             raise ValueError("Invalid likelihood: {!r}".format(likelihood))
 
     @property
-    def name(self):
-        return self._name
-
-    @name.setter
-    def name(self, name):
-        self._name = name
-        for p in self.parameters:
-            p.dataset = name
-
-    @property
     def model(self):
         """Sky model to fit (`~gammapy.cube.SkyModel` or `~gammapy.cube.SkyModels`)"""
         return self._model

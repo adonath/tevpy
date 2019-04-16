@@ -42,6 +42,7 @@ class SpectrumDataset(Dataset):
         aeff=None,
         edisp=None,
         background=None,
+        name="spectrum-dataset",
     ):
         if mask is not None and mask.dtype != np.dtype("bool"):
             raise ValueError("mask data must have dtype bool")
@@ -53,6 +54,7 @@ class SpectrumDataset(Dataset):
         self.edisp = edisp
         self.background = background
         self.model = model
+        self.name = name
 
     @property
     def model(self):
@@ -182,6 +184,7 @@ class SpectrumDatasetOnOff(Dataset):
         mask=None,
         aeff=None,
         edisp=None,
+        name="spectrum-dataset",
     ):
         if mask is not None and mask.dtype != np.dtype("bool"):
             raise ValueError("mask data must have dtype bool")
@@ -192,6 +195,7 @@ class SpectrumDatasetOnOff(Dataset):
         self.mask = mask
         self.aeff = aeff
         self.edisp = edisp
+        self.name = name
         self.model = model
 
     @property

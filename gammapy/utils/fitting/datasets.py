@@ -38,6 +38,17 @@ class Dataset(abc.ABC):
         """A deep copy."""
         return copy.deepcopy(self)
 
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+        for p in self.parameters:
+            p.dataset = name
+
+
 
 class Datasets:
     """Join multiple datasets.
