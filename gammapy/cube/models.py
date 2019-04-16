@@ -59,11 +59,21 @@ class SkyModels(SkyModelBase):
 
     def __init__(self, skymodels):
         self.skymodels = skymodels
+
         parameters = []
+        existing_names = []
 
         for skymodel in skymodels:
-            for p in skymodel.parameters:
-                parameters.append(p)
+            idx, suffix = 1, ""
+            while skymodel.name + suffix in existing_names:
+                suffix =  "-{}".format(idx)
+                idx += 1
+
+            existing_names.append(skymodel.name + suffix)
+            skymodel.name = skymodel.name + suffix
+
+            parameters += skymodel.parameters
+
         super().__init__(parameters)
 
     @classmethod
@@ -140,6 +150,15 @@ class SkyModels(SkyModelBase):
             raise NotImplementedError
         return SkyModels(skymodels)
 
+    def __getitem__(self, name):
+        for model in self.skymodels:
+            if model.name == name:
+                return model
+        raise KeyError("Model {} not in sky models.".format(name))
+
+    @property
+    def names(self):
+        return [_.name for _ in self.skymodels]
 
 class SkyModel(SkyModelBase):
     """Sky model component.
@@ -160,10 +179,9 @@ class SkyModel(SkyModelBase):
         Model identifier
     """
 
-    __slots__ = ["name", "_spatial_model", "_spectral_model"]
+    __slots__ = ["_spatial_model", "_spectral_model"]
 
     def __init__(self, spatial_model, spectral_model, name="source"):
-        self.name = name
         self._spatial_model = spatial_model
         self._spectral_model = spectral_model
         parameters = (
@@ -248,9 +266,8 @@ class SkyDiffuseCube(SkyModelBase):
 
     __slots__ = ["map", "norm", "meta", "_interp_kwargs"]
 
-    def __init__(self, map, norm=1, meta=None, interp_kwargs=None):
+    def __init__(self, map, norm=1, meta=None, interp_kwargs=None, name="diffuse"):
         axis = map.geom.get_axis_by_name("energy")
-
         if axis.node_type != "center":
             raise ValueError('Need a map with energy axis node_type="center"')
 
@@ -263,7 +280,7 @@ class SkyDiffuseCube(SkyModelBase):
         interp_kwargs.setdefault("fill_value", 0)
         self._interp_kwargs = interp_kwargs
 
-        super().__init__([self.norm])
+        super().__init__([self.norm], name=name)
 
     @classmethod
     def read(cls, filename, **kwargs):

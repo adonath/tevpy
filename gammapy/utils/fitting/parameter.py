@@ -252,6 +252,12 @@ class Parameters:
         unique_parameters = []
 
         for par in parameters:
+            if model is not None:
+                par.model = model
+
+            if dataset is not None:
+                par.dataset = dataset
+
             if par not in unique_parameters:
                 unique_parameters.append(par)
 
@@ -327,6 +333,8 @@ class Parameters:
     def to_table(self):
         """Convert parameter attributes to `~astropy.table.Table`."""
         t = Table()
+        t["dataset"] = [p.dataset for p in self.parameters]
+        t["model"] = [p.model for p in self.parameters]
         t["name"] = [p.name for p in self.parameters]
         t["value"] = [p.value for p in self.parameters]
         if self.covariance is None:

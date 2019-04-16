@@ -8,11 +8,22 @@ __all__ = ["Model"]
 class Model:
     """Model base class."""
 
-    __slots__ = ["_parameters"]
+    __slots__ = ["_parameters", "_name"]
 
-    def __init__(self, parameters=None, name=""):
+    def __init__(self, parameters=None, name=None):
         self._parameters = Parameters(parameters, model=name)
-        self.name = name
+        self._name = name
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+
+        for p in self._parameters:
+            p.model = name
 
     @property
     def parameters(self):

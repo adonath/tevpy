@@ -116,3 +116,13 @@ class Datasets:
     def copy(self):
         """A deep copy."""
         return copy.deepcopy(self)
+
+    def __getitem__(self, name):
+        for dataset in self.datasets:
+            if dataset.name == name:
+                return dataset
+        raise KeyError("Dataset '{}' not in datasets.".format(name))
+
+    @property
+    def names(self):
+        return [_.name for _ in self.datasets]

@@ -58,6 +58,7 @@ class MapDataset(Dataset):
         background_model=None,
         likelihood="cash",
         evaluation_mode="local",
+        name="map-dataset",
     ):
         if mask is not None and mask.data.dtype != np.dtype("bool"):
             raise ValueError("mask data must have dtype bool")
@@ -70,6 +71,7 @@ class MapDataset(Dataset):
         self.psf = psf
         self.edisp = edisp
         self.background_model = background_model
+        self._name = name
 
         if likelihood == "cash":
             self._stat = cash
@@ -79,6 +81,16 @@ class MapDataset(Dataset):
             self._stat_sum = cstat_sum_cython
         else:
             raise ValueError("Invalid likelihood: {!r}".format(likelihood))
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+        for p in self.parameters:
+            p.dataset = name
 
     @property
     def model(self):
@@ -100,16 +112,17 @@ class MapDataset(Dataset):
 
         self._evaluators = evaluators
 
-    @property
+    @lazyproperty
     def parameters(self):
         """List of parameters (`~gammapy.utils.fitting.Parameters`)"""
         if self.background_model:
             parameters = Parameters(
                 self.model.parameters.parameters
-                + self.background_model.parameters.parameters
+                + self.background_model.parameters.parameters,
+                dataset=self.name
             )
         else:
-            parameters = Parameters(self.model.parameters.parameters)
+            parameters = Parameters(self.model.parameters.parameters, dataset=self.name)
         return parameters
 
     @property
