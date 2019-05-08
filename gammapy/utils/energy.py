@@ -262,11 +262,6 @@ class EnergyBounds(Energy):
         hdu: `~astropy.io.fits.BinTableHDU`
             ``EBOUNDS`` extensions.
         """
-        if hdu.name != "EBOUNDS":
-            log.warning(
-                "This does not seem like an EBOUNDS extension. " "Are you sure?"
-            )
-
         header = hdu.header
         unit = header.get("TUNIT2")
         low = hdu.data["E_MIN"]
@@ -282,9 +277,6 @@ class EnergyBounds(Energy):
         hdu: `~astropy.io.fits.BinTableHDU`
             ``MATRIX`` extensions.
         """
-        if hdu.name != "MATRIX":
-            log.warning("This does not seem like a MATRIX extension. " "Are you sure?")
-
         header = hdu.header
         unit = header.get("TUNIT1")
         low = hdu.data["ENERG_LO"]
