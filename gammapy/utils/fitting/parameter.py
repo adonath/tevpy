@@ -347,6 +347,34 @@ class Parameters:
         return t
 
     @classmethod
+    def from_table(cls, table):
+        """Create Parameters object from table.
+
+        Parameters
+        ----------
+        table : `~astropy.table.Table`
+            Parameters table.
+
+        Returns
+        -------
+        parameters : `Parameters`
+            Parameters object.
+        """
+        parameters = []
+        for row in table:
+            kwargs = dict(zip(row.colnames, row.as_void()))
+            kwargs["factor"] = kwargs.pop("value")
+
+            # TODO: handle error differently e.g. with the covariance matrix
+            del kwargs["error"]
+
+            kwargs["frozen"] = bool(kwargs["frozen"])
+            parameter = Parameter(**kwargs)
+            parameters.append(parameter)
+        return cls(parameters)
+
+
+    @classmethod
     def from_dict(cls, val):
         pars = []
         for par in val["parameters"]:
