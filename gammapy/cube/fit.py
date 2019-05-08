@@ -5,6 +5,8 @@ from astropy.utils import lazyproperty
 import astropy.units as u
 from astropy.table import Table
 from astropy.nddata.utils import NoOverlapError
+from astropy.io import import fits
+from ..utils.scripts import make_path
 from ..utils.fitting import Parameters, Dataset
 from ..stats import cash, cstat, cash_sum_cython, cstat_sum_cython
 from ..maps import Map, MapAxis
@@ -180,17 +182,20 @@ class MapDataset(Dataset):
 
     def to_hdulist(self):
         """Create HDUList.
-        """
-        from astropy.io.fits import HDUList, BinTableHDU
 
+        Returns
+        -------
+        hdulist : `~astropy.io.fits.HDUList`
+            Map dataset list of HDUs.
+        """
         exclude_primary = slice(1, 3)
-        hdulist = HDUList()
+        hdulist = fits.HDUList()
         hdulist += self.counts.to_hdulist(hdu="counts")[exclude_primary]
         hdulist += self.exposure.to_hdulist(hdu="exposure")[exclude_primary]
         hdulist += self.background_model.map.to_hdulist(hdu="background")[exclude_primary]
 
         table = self.background_model.parameters.to_table()
-        hdulist.append(BinTableHDU(table, name="background_parameters"))
+        hdulist.append(fits.BinTableHDU(table, name="background_parameters"))
 
         if self.edisp:
             hdus = self.edisp.to_hdulist()
@@ -224,9 +229,10 @@ class MapDataset(Dataset):
         init_kwargs["exposure"] = Map.from_hdulist(hdulist, hdu="exposure")
 
         background_map = Map.from_hdulist(hdulist, hdu="background")
+        background_model = BackgroundModel(background_map)
         table = Table.read(hdulist["background_parameters"])
-        background_parameters = Parameters.from_table(table)
-        init_kwargs["background_model"] = BackgroundModel(background_map)
+        background_model.parameters = Parameters.from_table(table)
+        init_kwargs["background_model"] = background_model
 
         if "EDISP" in hdulist:
             init_kwargs["edisp"] = EnergyDispersion.from_hdulist(hdulist, hdu1="EDISP", hdu2="EDISP_EBOUNDS")
@@ -237,13 +243,42 @@ class MapDataset(Dataset):
 
         return cls(**init_kwargs)
 
-    def write(self, filename):
-        hdulist = self.to_hdulist()
-        hdulist.write(str(filename))
+    def write(self, filename, format="fits"):
+        """Write dataset to file.
+
+        Parameters
+        ----------
+        filename : str
+            Filename to write to.
+        format : {"fits"}
+            Format to use.
+
+        """
+        if format == "fits":
+            filename = make_path(filename)
+            hdulist = self.to_hdulist()
+            hdulist.write(str(filename))
+        else:
+            raise ValueError("Currently only the FITS format is supported.")
 
     @classmethod
     def read(cls, filename):
-        pass
+        """Read map dataset from file.
+
+        Parameters
+        ----------
+        filename : str
+            Filenaem to read from.
+
+        Returns
+        -------
+        dataset : `MapDataset`
+            Map dataset.
+
+        """
+        filename = make_path(filename)
+        hdulist = fits.open(str(filename))
+        return cls.from_hdulist(hdulist)
 
 
 class MapEvaluator:
