@@ -3,9 +3,8 @@ import logging
 import numpy as np
 from astropy.utils import lazyproperty
 import astropy.units as u
-from astropy.table import Table
 from astropy.nddata.utils import NoOverlapError
-from astropy.io import import fits
+from astropy.io import fits
 from ..utils.scripts import make_path
 from ..utils.fitting import Parameters, Dataset
 from ..stats import cash, cstat, cash_sum_cython, cstat_sum_cython
@@ -188,14 +187,14 @@ class MapDataset(Dataset):
         hdulist : `~astropy.io.fits.HDUList`
             Map dataset list of HDUs.
         """
+        # TODO: what todo about the model and background model?
         exclude_primary = slice(1, 3)
-        hdulist = fits.HDUList()
+
+        hdu_primary = fits.PrimaryHDU()
+        hdulist = fits.HDUList([hdu_primary])
         hdulist += self.counts.to_hdulist(hdu="counts")[exclude_primary]
         hdulist += self.exposure.to_hdulist(hdu="exposure")[exclude_primary]
         hdulist += self.background_model.map.to_hdulist(hdu="background")[exclude_primary]
-
-        table = self.background_model.parameters.to_table()
-        hdulist.append(fits.BinTableHDU(table, name="background_parameters"))
 
         if self.edisp:
             hdus = self.edisp.to_hdulist()
@@ -229,10 +228,7 @@ class MapDataset(Dataset):
         init_kwargs["exposure"] = Map.from_hdulist(hdulist, hdu="exposure")
 
         background_map = Map.from_hdulist(hdulist, hdu="background")
-        background_model = BackgroundModel(background_map)
-        table = Table.read(hdulist["background_parameters"])
-        background_model.parameters = Parameters.from_table(table)
-        init_kwargs["background_model"] = background_model
+        init_kwargs["background_model"] = BackgroundModel(background_map)
 
         if "EDISP" in hdulist:
             init_kwargs["edisp"] = EnergyDispersion.from_hdulist(hdulist, hdu1="EDISP", hdu2="EDISP_EBOUNDS")
@@ -257,7 +253,7 @@ class MapDataset(Dataset):
         if format == "fits":
             filename = make_path(filename)
             hdulist = self.to_hdulist()
-            hdulist.write(str(filename))
+            hdulist.writeto(str(filename))
         else:
             raise ValueError("Currently only the FITS format is supported.")
 
