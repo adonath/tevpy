@@ -31,9 +31,10 @@ def covariance_scipy(parameters, function, **kwargs):
     from numdifftools import Hessian
 
     likelihood = Likelihood(function, parameters)
+    kwargs.setdefault("step", 1e-2)
     hessian = Hessian(likelihood.fcn, **kwargs)
 
-    parameter_factors = np.array([par.factor for par in parameters])
+    parameter_factors = np.array([par.factor for par in parameters.free_parameters])
     hesse_matrix = hessian(parameter_factors)
 
     success, message = True, "Covariance estimation successful"
