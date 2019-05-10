@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """Unit tests for the Fit class"""
 import pytest
+import numpy as np
 from numpy.testing import assert_allclose
 from ..parameter import Parameter, Parameters
 from ..model import Model
@@ -72,9 +73,18 @@ def test_optimize(backend):
     assert_allclose(pars["z"].value, 4e-2, rtol=1e-3)
 
 
-# TODO: add some extra covariance tests, in addition to run
-# Probably mainly if error message is OK if optimize didn't run first.
-# def test_covariance():
+@requires_dependency("numdifftools")
+@pytest.mark.parametrize("backend", ["scipy"])
+def test_covariance(backend):
+    dataset = MyDataset()
+    fit = Fit(dataset)
+    result = fit.covariance(backend=backend)
+    covar = result.parameters.covariance
+
+    assert result.success is True
+
+    desired = np.diag([1, 1, 1])
+    assert_allclose(covar, desired)
 
 
 @pytest.mark.parametrize("backend", ["minuit"])

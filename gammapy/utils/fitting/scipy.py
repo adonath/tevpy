@@ -41,7 +41,7 @@ def covariance_scipy(parameters, function, **kwargs):
     try:
         covariance_factors = 2 * np.linalg.inv(hesse_matrix)
     except np.linalg.linalg.LinAlgError:
-        success = False
+        success, message = False, "Hesse matrix inversion failed."
         # If normal inverse fails, try pseudo inverse
         N = len(parameters.parameters)
         covariance_factors = np.nan * np.ones((N, N))
