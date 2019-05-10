@@ -27,6 +27,24 @@ def optimize_scipy(parameters, function, **kwargs):
     return factors, info, optimizer
 
 
-# TODO: implement, e.g. with numdifftools.Hessian
-def covariance_scipy(parameters, function):
-    raise NotImplementedError
+def covariance_scipy(parameters, function, **kwargs):
+    from numdifftools import Hessian
+
+    likelihood = Likelihood(function, parameters)
+    hessian = Hessian(likelihood.fcn, **kwargs)
+
+    parameter_factors = np.array([par.factor for par in parameters])
+    hesse_matrix = hessian(parameter_factors)
+
+    success, message = True, "Covariance estimation successful"
+
+    try:
+        covariance_factors = 2 * np.linalg.inv(hesse_matrix)
+    except np.linalg.linalg.LinAlgError:
+        success = False
+        # If normal inverse fails, try pseudo inverse
+        N = len(parameters.parameters)
+        covariance_factors = np.nan * np.ones((N, N))
+
+    return covariance_factors, {"success": success, "message": message}
+
