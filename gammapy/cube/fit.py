@@ -206,6 +206,10 @@ class MapDataset(Dataset):
         if self.psf:
             hdulist += self.psf.psf_kernel_map.to_hdulist(hdu="psf")[exclude_primary]
 
+        if self.mask_safe:
+            mask_safe_map = Map.from_geom(self.counts.geom, data=self.mask_safe)
+            hdulist += mask_safe_map.to_hdulist(hdu="mask-safe")[exclude_primary]
+
         return hdulist
 
     @classmethod
@@ -237,6 +241,10 @@ class MapDataset(Dataset):
             psf_map = Map.from_hdulist(hdulist, hdu="psf")
             init_kwargs["psf"] = PSFKernel(psf_map)
 
+        if "MASK_SAFE" in hdulist:
+            mask_safe_map = Map.from_hdulist(hdulist, hdu="mask_safe")
+            init_kwargs["mask_safe"] = mask_safe_map.data
+
         return cls(**init_kwargs)
 
     def write(self, filename, format="fits"):
@@ -264,7 +272,7 @@ class MapDataset(Dataset):
         Parameters
         ----------
         filename : str
-            Filenaem to read from.
+            Filename to read from.
 
         Returns
         -------
