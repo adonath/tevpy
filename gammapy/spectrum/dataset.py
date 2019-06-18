@@ -795,6 +795,52 @@ def _read_ogip_hdulist(hdulist, hdu1="SPECTRUM", hdu2="EBOUNDS"):
         is_bkg=False,
     )
 
+    def stack(self, other):
+        """Stack two `SpectrumDatasetOnOff` objects.
+
+        Parameters
+        ----------
+        other : `SpectrumDatasetOnOff`
+            Other spectrum dataset.
+
+
+        Returns
+        -------
+        stacked : `SpectrumDatasetOnOff`
+            Stacked spectrum dataset.
+        """
+        if np.allclose(self.counts.energy.edges, other.counts.edges):
+            raise ValueError("Cannot stack datasets with different energy binning")
+
+        # stack counts data
+        counts = np.zeros_like(self.counts.data)
+        counts[self.mask_safe] += self.counts.data[self.mask_safe]
+        counts[other.mask_safe] += self.counts.data[other.mask_safe]
+
+        counts_off = np.zeros_like(self.counts_off.data)
+        counts_off[self.mask_safe] += self.counts_off.data[self.mask_safe]
+        counts_off[other.mask_safe] += self.counts_off.data[other.mask_safe]
+
+        # stack IRFs
+        livetime = self.livetime + other.livetime
+        edisp = self.edisp.stack(other.edisp)
+        aeff = self.aeff.stack(other.aeff)
+
+        # combine masks
+        mask_safe = self.mask_safe & other.mask_safe
+        mask_fit = self.mask_fit & other.mask_fit
+
+        return self.__class__(
+            counts=self._as_counts_spectrum(counts),
+            counts_off=counts_off,
+            livetime=livetime,
+            edisp=edisp,
+            aeff=aeff,
+            mask_safe=mask_safe,
+            mask_fit=mask_fit,
+
+        )
+
 
 class SpectrumDatasetOnOffStacker:
     r"""Stack a list of homogeneous datasets.
