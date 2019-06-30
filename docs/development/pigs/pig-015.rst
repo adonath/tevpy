@@ -1,0 +1,166 @@
+.. include:: ../../references.txt
+
+.. _pig-015:
+
+***********************
+PIG 15 - Data reduction
+***********************
+
+* Author: Axel Donath
+* Created: June 30th, 2019
+* Accepted:
+* Status:
+* Discussion:
+
+Abstract
+========
+The data reduction also includes stacking
+
+
+In general the responsibilities can be shared between the `MapDataset`
+and e.g. a `MapMaker` class.
+
+
+Introduction
+============
+One of the most important features of Gammapy are binned likelihood analyses.
+To perform such an analysis, the event data as well as instrument response
+functions must be prepared and binned into or reduced to a discrete data
+structure (maps or spectra), with a binning specified by the user.
+For analyses including O(1e2) - O(1e3) observations and a combined spatial
+and spectral analysis this data reduction step can be computationally costly.
+At the same time it should feature a simple and flexible user interface.
+
+Typically the reduced data is computed per observation or per time interval
+and possibly includes further selection of events, such as phase or type.
+
+
+The main analysis classes for likelihood fitting in Gammapy are the
+`MapDataset` and `SpectrumDataset` objects. A natural extension of
+the dataset concept is to implement algorithmic classes, that are
+responsible for the preparation and data reduction and return
+pre-filled dataset objects.
+
+
+Beside the reduction of the selected data, it must be a also
+
+
+
+Currently the data
+
+`MapMaker`, `MapMakerRing`, `IRFMapMaker`
+`make_mean_psf()`,, `make_mean_edisp()`, `make_psf`, `IRFStacker`
+
+
+The `MapDataset` already has the responsibility to cutout and reproject
+parts of the exposure map and interpolating the correct PSF and Edisp
+for a given source / model component.
+
+
+Proposal
+========
+The general proposed work-flow for data reduction is as follows:
+
+- Choose MapGeom for counts and background
+- Choose MapGeom for exposure, PSFMap and EDispMap
+_ Compute a dataset per observation, compute safe mask, but don't apply. This
+give users the possibility to change the safe data range later.
+- Safe mask is only applied for stacking and during fitting.
+
+Introduce `MapDataset.to_image()` to sum over energy axes and compute weighted
+exposure and PSF maps?
+
+
+Adding `Dataset.create()` methods
+--------------------------
+First we propose to add `.create()` methods to the existing `MapDataset`,
+`SpectrumDataset` and `SpectrumDatasetOnOff` class. The purpose is to make it
+easy to create empty datasets, which can be filled via stacking.
+
+
+.. code::
+
+    dataset = MapDataset.from(geom, geom_irf)
+    spectrum_dataset = SpectrumDataset.create(geom, geom_irf)
+
+
+Adding `Dataset.stack()` methods
+--------------------------------
+To allow for flexible stacking of datasets we propose to add `.stack()` methods
+to the existing `MapDataset`, `SpectrumDataset` and `SpectrumDatasetOnOff` classes.
+
+A typical example for stacking of datasets like:
+
+.. code::
+
+    dataset_stacked = MapDataset.create(geom, geom_irf)
+
+    for dataset in datasets:
+        dataset_stacked.stack(dataset)
+
+
+For now we assume that only datasets with compatible bin-sizes and aligned WCS
+or HPX representations can be stacked. Later we could add the possibility to
+stack non-aligned data structures by introducing an additional interpolation
+step (see outlook).
+
+The stacking is performed in-place, which is more memory efficient.
+
+We also propose to extende this concept to IRF and Map classes. This includes:
+
+- `EnergyDispersion.stack()`
+- `PSFKernel.stack()`
+- `Map.stack()` or `Map.paste()`
+
+
+`MapDatasetEstimator`
+---------------------
+Implementation detail...
+Re-use FoV coordinates, share code for time-averaging, etc.
+
+
+`SpectrumDatasetEstimator`
+--------------------------
+
+
+`DatasetsEstimator`
+-------------------
+Loop over observations, parallelisation, bookkeeping, convenience.
+
+
+`.stack(datasets)`
+`.read_stack(filenames, obs_ids)`
+
+`.run(obervations)`
+`.run_write(observations)`
+
+
+
+
+`BackgroundEstimator`
+---------------------
+Reflected, ring, adaptive ring etc.
+
+
+Outlook
+=======
+Change DL3 data format to precomputed background, exposure, edisp and psf maps.
+
+
+Task List
+=========
+We propose to implement the functionality via the following pull requests:
+
+1. Implement `MapDatasetEstimator`
+2. Implement `DatasetsEstimator`
+3. Implement `MapDataset.stack()` method
+4. Implement `SpectrumDatasetOnOff.stack()` method
+5. Implement `EnergyDispersion.stack()` method
+
+
+
+
+Decision
+========
+
+
