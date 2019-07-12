@@ -46,7 +46,7 @@ if not _ASTROPY_SETUP_:  # pylint: disable=undefined-variable
     pass
 
 
-def song(karaoke=False):
+def song(karaoke=True):
     """
     Listen to the Gammapy song.
 
@@ -74,6 +74,7 @@ def song(karaoke=False):
             "open source project\n\n"
             "Gammapy, Gammapy\n\n"
             "Supernova remnants, pulsar winds, AGN, Gamma, Gamma, Gammapy\n"
+            
         )
 
         centered = "\n".join("{:^80}".format(s) for s in lyrics.split("\n"))
