@@ -254,11 +254,15 @@ class MapDatasetEstimator:
             kwargs["background_model"] = BackgroundModel(background)
 
         if "psf" in steps:
-            kwargs["psf"] = self.estimate_psf()
+            psf = self.estimate_psf()
+            psf.exposure_map = kwargs["exposure"]
+            kwargs["psf"] = psf
             # TODO: set reference to exposure map?
 
         if "edisp" in steps:
-            kwargs["edisp"] = self.estimate_edisp()
+            edisp = self.estimate_edisp()
+            edisp.exposure_map = kwargs["exposure"]
+            kwargs["edisp"] = edisp
             # TODO: set reference to exposure map?
 
         if "mask_safe" in steps:

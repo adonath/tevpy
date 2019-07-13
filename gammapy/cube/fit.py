@@ -567,34 +567,16 @@ class MapDataset(Dataset):
             background = other.background_model.evaluate()
             self.background_model.map.stack(background, weights=other.mask_safe)
 
-        weights, weights_other = self._get_exposure_weights(other)
-
         if self.edisp is not None and other.edisp is not None:
-            coords = other.edisp.edisp_map.geom.get_coord()
-            edisp = self.edisp.edisp_map.get_by_coord(coords)
-            stacked_edisp = edisp * weights + other.edisp.edisp_map.data * weights_other
-            self.edisp.edisp_map.set_by_coord(coords, stacked_edisp)
+            self.edisp = self.edisp.stack(other.edisp)
 
         if self.psf is not None and other.psf is not None:
-            coords = other.psf.psf_map.geom.get_coord()
-            psf = self.psf.psf_map.get_by_coord(coords)
-            stacked_psf = psf * weights + other.psf.psf_map.data * weights_other
-            self.psf.psf_map.set_by_coord(coords, stacked_psf)
+            self.psf = self.psf.stack(other.psf)
 
         if self.exposure is not None and other.exposure is not None:
             # TODO: add mask_safe for exposure
             weights = None
             self.exposure.stack(other.exposure, weights=weights)
-
-    def _get_exposure_weights(self, other):
-        """Get expsoure weights"""
-        coords = other.exposure.geom.get_coord()
-        exposure = self.exposure.get_by_coord(coords)
-        exposure_sum = exposure + other.exposure.data
-        weights = (exposure / exposure_sum)[:, np.newaxis, :, :]
-        weights_other = (other.exposure.data / exposure_sum)[:, np.newaxis, :, :]
-        return weights, weights_other
-
 
 
     @classmethod
@@ -628,8 +610,8 @@ class MapDataset(Dataset):
             counts=counts,
             exposure=exposure,
             background_model=background_model,
-            edisp=EDispMap(edisp),
-            psf=PSFMap(psf)
+            edisp=EDispMap(edisp, exposure_map=exposure),
+            psf=PSFMap(psf, exposure_map=exposure)
         )
 
 
