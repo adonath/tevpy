@@ -682,3 +682,55 @@ class WcsNDMap(WcsMap):
         data = self.data[cutout_slices]
 
         return self._init_copy(geom=geom, data=data)
+
+    def _get_boundaries(self, geom_ref, geom):
+        """Boundary pixel coordinates on another reference image.
+        """
+        # TODO: simplify the code below
+        ymax, xmax = geom.data_shape
+        ymax_ref, xmax_ref = geom_ref.data_shape
+
+        # transform boundaries in world coordinates
+        bounds = geom.pix_to_coord(([0, xmax], [0, ymax]))
+
+        # transform to pixel coordinates in the reference image
+        bounds_ref = geom_ref.coord_to_pix((bounds[0], bounds[1]))
+
+        # round to nearest integer and clip at the boundaries
+        xlo, xhi = np.rint(np.clip(bounds_ref[0], 0, xmax_ref)).astype('int')
+        ylo, yhi = np.rint(np.clip(bounds_ref[1], 0, ymax_ref)).astype('int')
+
+        if not np.allclose(bounds_ref, np.rint(bounds_ref)):
+            raise ValueError("World coordinate systems not aligned. Try to call"
+                             " .reproject() on one of the images first.")
+
+        return xlo, xhi, ylo, yhi
+
+    def stack(self, other, weights=None, method='sum'):
+        """Paste cutout into map.
+
+        Parameters
+        ----------
+        other : `WcsNDMap`
+            Smaller image to paste.
+        method : {'sum', 'replace'}, optional
+            Sum or replace total values with cutout values.
+        """
+        geom_ref = self.geom.to_image()
+        geom = other.geom.to_image()
+
+        xlo, xhi, ylo, yhi = self._get_boundaries(geom_ref, geom)
+        xlo_c, xhi_c, ylo_c, yhi_c = self._get_boundaries(geom, geom_ref)
+
+        slice_cutout = Ellipsis, slice(ylo_c, yhi_c), slice(xlo_c, xhi_c)
+        slice_ = Ellipsis, slice(ylo, yhi), slice(xlo, xhi)
+
+        if method == 'sum':
+            if weights is None:
+                self.data[slice_] += other.data[slice_cutout]
+            else:
+                self.data[slice_] += (other.data[slice_cutout] * weights[slice_cutout])
+        elif method == 'replace':
+            self.data[slice_] = other.data[slice_cutout]
+        else:
+            raise ValueError('Invalid method: {}'.format(method))
