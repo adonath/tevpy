@@ -731,6 +731,9 @@ class WcsNDMap(WcsMap):
             else:
                 self.data[slice_] += (other.data[slice_cutout] * weights[slice_cutout])
         elif method == 'replace':
-            self.data[slice_] = other.data[slice_cutout]
+            if weights is None:
+                self.data[slice_] = other.data[slice_cutout]
+            else:
+                self.data[slice_] = (other.data[slice_cutout] * weights[slice_cutout])
         else:
             raise ValueError('Invalid method: {}'.format(method))
