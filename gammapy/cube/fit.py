@@ -13,6 +13,9 @@ from ..utils.random import get_random_state
 from ..utils.scripts import make_path
 from .models import BackgroundModel, SkyModel, SkyModels
 from .psf_kernel import PSFKernel
+from .edisp_map import EDispMap
+from .psf_map import PSFMap
+
 
 __all__ = ["MapEvaluator", "MapDataset"]
 
@@ -452,7 +455,7 @@ class MapDataset(Dataset):
                 hdulist.append(hdus["EDISP_MATRIX"])
                 hdulist.append(hdus["EDISP_MATRIX_EBOUNDS"])
             else:
-                hdulist += self.edisp.edisp_map.to_hdulist(hdu="EDISP")
+                hdulist += self.edisp.edisp_map.to_hdulist(hdu="EDISP")[exclude_primary]
 
         if self.psf is not None:
             if isinstance(self.psf, PSFKernel):
@@ -547,6 +550,89 @@ class MapDataset(Dataset):
         filename = make_path(filename)
         hdulist = fits.open(str(filename))
         return cls.from_hdulist(hdulist)
+
+    def stack(self, other):
+        """Stack two datasets.
+
+        Parameters
+        ----------
+        other : `MapDataset`
+            Dataset to stack.
+        """
+        if self.counts is not None and other.counts is not None:
+            self.counts.stack(other.counts, weights=other.mask_safe)
+
+        if self.background_model is not None and other.background_model is not None:
+            # TODO: how to stack background models?
+            background = other.background_model.evaluate()
+            self.background_model.map.stack(background, weights=other.mask_safe)
+
+        weights, weights_other = self._get_exposure_weights(other)
+
+        if self.edisp is not None and other.edisp is not None:
+            coords = other.edisp.edisp_map.geom.get_coord()
+            edisp = self.edisp.edisp_map.get_by_coord(coords)
+            stacked_edisp = edisp * weights + other.edisp.edisp_map.data * weights_other
+            self.edisp.edisp_map.set_by_coord(coords, stacked_edisp)
+
+        if self.psf is not None and other.psf is not None:
+            coords = other.psf.psf_map.geom.get_coord()
+            psf = self.psf.psf_map.get_by_coord(coords)
+            stacked_psf = psf * weights + other.psf.psf_map.data * weights_other
+            self.psf.psf_map.set_by_coord(coords, stacked_psf)
+
+        if self.exposure is not None and other.exposure is not None:
+            # TODO: add mask_safe for exposure
+            weights = None
+            self.exposure.stack(other.exposure, weights=weights)
+
+    def _get_exposure_weights(self, other):
+        """Get expsoure weights"""
+        coords = other.exposure.geom.get_coord()
+        exposure = self.exposure.get_by_coord(coords)
+        exposure_sum = exposure + other.exposure.data
+        weights = (exposure / exposure_sum)[:, np.newaxis, :, :]
+        weights_other = (other.exposure.data / exposure_sum)[:, np.newaxis, :, :]
+        return weights, weights_other
+
+
+
+    @classmethod
+    def create(cls, geom, geom_irf):
+        """Create empty MapDataset from geoms.
+
+        Parameters
+        ----------
+
+        """
+        counts = Map.from_geom(geom)
+        background = Map.from_geom(geom)
+        background_model = BackgroundModel(background)
+        exposure = Map.from_geom(geom_irf)
+
+        # TODO: change axis order in EDispMap and PSFMap, that energy axis comes first
+        geom_image = geom_irf.to_image()
+        energy_axis = geom_irf.get_axis_by_name("energy")
+
+        # this is the default?
+        rad_max = 0.6656057834625244
+        rad_axis = MapAxis.from_bounds(0, rad_max, nbin=144, node_type="edges", name="theta", unit="deg")
+        geom_psf = geom_image.to_cube([rad_axis, energy_axis])
+        psf = Map.from_geom(geom_psf, unit="sr-1")
+
+        migra_axis = MapAxis.from_bounds(0.2, 5, nbin=160, node_type="edges", name="migra")
+        geom_edisp = geom_image.to_cube([migra_axis, energy_axis])
+        edisp = Map.from_geom(geom_edisp)
+
+        return cls(
+            counts=counts,
+            exposure=exposure,
+            background_model=background_model,
+            edisp=EDispMap(edisp),
+            psf=PSFMap(psf)
+        )
+
+
 
 
 class MapEvaluator:
