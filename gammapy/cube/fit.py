@@ -777,22 +777,24 @@ class MapEvaluator:
         self._init_position = self.model.position
 
         # TODO: lookup correct Edisp for this component
-        self.edisp = edisp
+        e_reco = geom.get_axis_by_name("energy").edges
+        self.edisp = edisp.get_energy_dispersion(self.model.position, e_reco=e_reco)
 
         # TODO: lookup correct PSF for this component
-        self.psf = psf
+        self.psf = psf.get_psf_kernel(position=self.model.position, geom=geom, max_radius=0.6 * u.deg)
 
         if self.evaluation_mode == "local":
             if psf is not None:
-                psf_width = np.max(psf.psf_kernel_map.geom.width)
+                psf_width = np.max(self.psf.psf_kernel_map.geom.width)
             else:
                 psf_width = 0 * u.deg
 
             width = psf_width + 2 * (self.model.evaluation_radius + CUTOUT_MARGIN)
             try:
-                self.exposure = exposure.cutout(
+                cutout = geom.cutout(
                     position=self.model.position, width=width
                 )
+                self.exposure = exposure.reproject(cutout.to_image())
             except NoOverlapError:
                 raise ValueError(
                     "Position {} of model component is outside the image boundaries."
