@@ -335,7 +335,9 @@ class PSFMap:
         stacked_psf_quantity += reproj_psfmap.quantity * other_exposure
 
         total_exposure = exposure + other_exposure
-        stacked_psf_quantity /= total_exposure
+
+        with np.errstate(invalid="ignore"):
+            stacked_psf_quantity /= total_exposure
 
         reproj_psfmap.quantity = stacked_psf_quantity
         # We need to remove the extra axis in the total exposure

@@ -332,7 +332,8 @@ class EDispMap:
         stacked_edisp_quantity += reproj_edispmap.quantity * other_exposure
 
         total_exposure = exposure + other_exposure
-        stacked_edisp_quantity /= total_exposure
+        with np.errstate(invalid="ignore"):
+            stacked_edisp_quantity /= total_exposure
 
         reproj_edispmap.quantity = stacked_edisp_quantity
         # We need to remove the extra axis in the total exposure

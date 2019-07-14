@@ -578,14 +578,21 @@ class MapDataset(Dataset):
             weights = None
             self.exposure.stack(other.exposure, weights=weights)
 
-
     @classmethod
     def create(cls, geom, geom_irf):
         """Create empty MapDataset from geoms.
 
         Parameters
         ----------
+        geom : `MapGeom`
+            Map geometry.
+        geom_irf : `MapGeom`
+            IRF map geometry.
 
+        Returns
+        -------
+        dataset : `MapDataset`
+            Empty map dataset.
         """
         counts = Map.from_geom(geom)
         background = Map.from_geom(geom)
@@ -596,7 +603,7 @@ class MapDataset(Dataset):
         geom_image = geom_irf.to_image()
         energy_axis = geom_irf.get_axis_by_name("energy")
 
-        # this is the default?
+        # TODO: how to get the defaults for migra and rad axis?
         rad_max = 0.6656057834625244
         rad_axis = MapAxis.from_bounds(0, rad_max, nbin=144, node_type="edges", name="theta", unit="deg")
         geom_psf = geom_image.to_cube([rad_axis, energy_axis])
@@ -614,7 +621,35 @@ class MapDataset(Dataset):
             psf=PSFMap(psf, exposure_map=exposure)
         )
 
+    def to_image(self, spectrum=None, keepdims=True):
+        """Convert map dataset
 
+
+        Parameters
+        ----------
+        spectrum : `SpectralModel`
+            Spectral model assumption.
+        keepdims : bool
+            Keep dimensions.
+
+        Returns
+        -------
+        dataset : `MapDataset`
+            Map dataset with images.
+        """
+
+        counts = self.counts.sum_over_axes(keepdims=keepdims)
+        background = self.background_model.sum_over_axes(keepdims=keepdims)
+        exposure = _map_spectrum_weight(self.exposure, spectrum)
+
+        # TODO: handle PSF map
+        return self.__class__(
+            counts=counts,
+            exposure=exposure,
+            background_model=background_model,
+            edisp=None,
+            psf=None,
+        )
 
 
 class MapEvaluator:

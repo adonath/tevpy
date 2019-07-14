@@ -270,14 +270,20 @@ class MapDatasetEstimator:
         return MapDataset(**kwargs)
 
 
-def _run_map_estimator(obs, offset_max, geom, geom_irf, steps):
+def _run_map_estimator(obs, offset_max, geom, geom_irf, steps, path=None, overwrite=True):
     """"""
     position = obs.pointing_radec
     width = 2 * offset_max
     geom = geom.cutout(position=position, width=width)
     geom_irf = geom_irf.cutout(position=position, width=width)
     estimator = MapDatasetEstimator(observation=obs, geom=geom, geom_irf=geom_irf, offset_max=offset_max)
-    return estimator.run(steps=steps)
+    dataset = estimator.run(steps=steps)
+
+    if path is not None:
+        filename = Path(path) / "obs_{}.fits".format(obs.obs_id)
+        dataset.write(filename, overwrite=overwrite)
+    else:
+        return dataset
 
 
 class DatasetsEstimator:
@@ -313,7 +319,7 @@ class DatasetsEstimator:
         dataset_stacked : `MapDataset` or `SpectrumDataset`
             Stacked dataset.
         """
-        dataset_stacked = MapDataset.from_geoms(geom, geom_irf)
+        dataset_stacked = MapDataset.create(geom=self.geom, geom_irf=self.geom_irf)
 
         for dataset in datasets:
             dataset_stacked.stack(dataset)
@@ -360,20 +366,19 @@ class DatasetsEstimator:
         """
         import multiprocessing
         from functools import partial
+        import warnings
 
-        datasets = []
-        with multiprocessing.Pool(processes=n_jobs) as pool:
-            kwargs = {
-                "offset_max": self.offset_max,
-                "geom": self.geom,
-                "geom_irf": self.geom_irf,
-                "steps": steps
-            }
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with multiprocessing.Pool(processes=n_jobs) as pool:
+                kwargs = {
+                    "offset_max": self.offset_max,
+                    "geom": self.geom,
+                    "geom_irf": self.geom_irf,
+                    "steps": steps
+                }
 
-            datasets = pool.map(partial(_run_map_estimator, **kwargs), observations)
-
-            if self.background_estimator is not None:
-                dataset = self.background_estimator.run(dataset)
+                datasets = pool.map(partial(_run_map_estimator, **kwargs), observations)
 
         return datasets
 
@@ -392,13 +397,23 @@ class DatasetsEstimator:
             Number of jobs to submit.
 
         """
-        # TODO: add parallelisation using multiprocessing.Pool
-        for obs in observations:
-            geom = self.geom.cutout()
-            estimator = MapDatasetEstimator(geom, geom_irf)
-            dataset = estimator.run(obs=obs, steps=steps)
-            filename = Path(path) / {"obs_{}.fits".format(obs.obs_id)}
-            dataset.write(filename, overwrite=overwrite)
+        import multiprocessing
+        from functools import partial
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with multiprocessing.Pool(processes=n_jobs) as pool:
+                kwargs = {
+                    "offset_max": self.offset_max,
+                    "geom": self.geom,
+                    "geom_irf": self.geom_irf,
+                    "steps": steps,
+                    "path": path,
+                    "overwrite": overwrite
+                }
+
+                pool.map(partial(_run_map_estimator, **kwargs), observations)
 
 
 # needed?
