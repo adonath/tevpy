@@ -300,11 +300,13 @@ class DatasetsEstimator:
         Map geometry used for exposure, edisp and PSF map.
     """
 
-    def __init__(self, geom, geom_irf, offset_max=None, background_estimator=None):
+    def __init__(self, geom, geom_irf, offset_max=None, background_estimator=None,
+                 time_intervals=None):
         self.geom = geom
         self.geom_irf = geom_irf
         self.offset_max = Angle(offset_max)
         self.background_estimator = background_estimator
+        self.time_intervals = time_intervals
 
     def stack(self, datasets):
         """Stack datasets.
@@ -351,6 +353,15 @@ class DatasetsEstimator:
 
         return dataset_stacked
 
+    def _run_map_estimator(self, obs, steps):
+        position = obs.pointing_radec
+        width = 2 * self.offset_max
+        geom = self.geom.cutout(position=position, width=width)
+        geom_irf = self.geom_irf.cutout(position=position, width=width)
+        estimator = MapDatasetEstimator(observation=obs, geom=geom, geom_irf=geom_irf, offset_max=self.offset_max)
+        return estimator.run(steps=steps)
+
+
     def run(self, observations, steps="all", n_jobs=4):
         """Run datasets estimator.
 
@@ -364,25 +375,23 @@ class DatasetsEstimator:
         datasets : list of `Dataset` or `Datasets`
             List of datasets.
         """
-        import multiprocessing
-        from functools import partial
-        import warnings
+        datasets = []
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with multiprocessing.Pool(processes=n_jobs) as pool:
-                kwargs = {
-                    "offset_max": self.offset_max,
-                    "geom": self.geom,
-                    "geom_irf": self.geom_irf,
-                    "steps": steps
-                }
-
-                datasets = pool.map(partial(_run_map_estimator, **kwargs), observations)
+        if self.time_intervals is not None:
+            for time_interval in self.time_intervals:
+                obs = observations.select_time(time_interval)
+                dataset = self._run_map_estimator(obs, steps)
+                datasets.append(dataset)
+        else:
+            for obs in observations:
+                dataset = self._run_map_estimator(obs, steps)
+                datasets.append(dataset)
 
         return datasets
 
-    def run_write(self, observations, steps="all", path="datasets", overwrite=False, n_jobs=4):
+
+
+    def run_write(self, observations, steps="all", path="datasets", overwrite=False):
         """Run datasets estimator and write datasets to disk.
 
         Parameters
@@ -397,23 +406,17 @@ class DatasetsEstimator:
             Number of jobs to submit.
 
         """
-        import multiprocessing
-        from functools import partial
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with multiprocessing.Pool(processes=n_jobs) as pool:
-                kwargs = {
-                    "offset_max": self.offset_max,
-                    "geom": self.geom,
-                    "geom_irf": self.geom_irf,
-                    "steps": steps,
-                    "path": path,
-                    "overwrite": overwrite
-                }
-
-                pool.map(partial(_run_map_estimator, **kwargs), observations)
+        if self.time_intervals is not None:
+            for idx, time_interval in enumerate(self.time_intervals):
+                obs = observations.select_time(time_interval)
+                dataset = self._run_map_estimator(obs, steps)
+                filename = Path(path) / "obs_{}.fits".format(idx)
+                dataset.write(filename, overwrite=overwrite)
+        else:
+            for obs in observations:
+                dataset = self._run_map_estimator(obs, steps)
+                filename = Path(path) / "obs_{}.fits".format(obs.obs_id)
+                dataset.write(filename, overwrite=overwrite)
 
 
 # needed?
