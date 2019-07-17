@@ -6,7 +6,7 @@
 PIG 15 - Data reduction
 ***********************
 
-* Author: Axel Donath
+* Author: Axel Donath, Lars Mohrmann, Régis Terrier
 * Created: June 30th, 2019
 * Accepted:
 * Status:
@@ -46,19 +46,49 @@ Beside the reduction of the selected data, it must be a also
 
 
 
-Currently the data
-
-`MapMaker`, `MapMakerRing`, `IRFMapMaker`
-`make_mean_psf()`,, `make_mean_edisp()`, `make_psf`, `IRFStacker`
+What we currently have:
 
 
-The `MapDataset` already has the responsibility to cutout and reproject
-parts of the exposure map and interpolating the correct PSF and Edisp
-for a given source / model component.
+`MapMaker`
+
+`MapMakerRing`
+
+`MapMakerObs`
+
+
+`make_mean_psf()`,
+`make_mean_edisp()`,
+`make_psf`,
+`IRFStacker`
+
+
+`SpectrumExtraction`
+`SpectrumDatasetOnOffStacker`
+
+
+Background estimators:
+
+
+Work on maps:
+
+`RingBackgroundEstimator`,
+`AdaptiveRingBackgroundEstimator`,
+
+
+Work on event lists:
+
+`ReflectedRegionsBackgroundEstimator`,
+`PhaseBackgroundEstimator`
+
 
 
 Proposal
 ========
+
+
+Overview
+
+
 The general proposed work-flow for data reduction is as follows:
 
 - Choose MapGeom for counts and background
@@ -113,19 +143,159 @@ We also propose to extende this concept to IRF and Map classes. This includes:
 - `Map.stack()` or `Map.paste()`
 
 
-`MapDatasetEstimator`
----------------------
-Implementation detail...
+`MapDatasetMaker`
+-----------------
 Re-use FoV coordinates, share code for time-averaging, etc.
 
+Aligned WCS projections between "global" and cutouts...
 
-`SpectrumDatasetEstimator`
---------------------------
+Similar to `MapMakerObs`, adds computation of edisp and psf maps.
+
+Assume same geom for counts and background,
 
 
-`DatasetsEstimator`
+
+ObservationFilter? Where is the offset_max configured?
+
+
+Start with `MapDataset.create()`?
+
+.. code::
+
+    maker = MapDatasetMaker(geom, energy_axis_true, migra_axis, rad_axis, binsz_irf, source_position?)
+    maker = MapDatasetMaker(geom, geom_true, geom_psf, geom_edisp, source_position?)
+
+
+    dataset = maker.run(obs, steps=["counts", "background", "exposure", "psf", "edisp"]])
+
+
+    dataset = MapDataset.create(geom, ..., )
+
+    for obs in observations:
+        cutout = dataset.cutout(width=offset_max?)
+        maker = MapDatasetMaker(cutout, )
+        dataset = maker.run(obs)
+
+
+Should the `DatasetMaker` split into time-intervals?
+
+    for obs in observations:
+
+        maker = MapDatasetMaker(time_intervals=[]?)
+        datasets = maker.run(obs)
+
+
+Or make the cut out in `.run()`?
+
+
+.. code::
+
+    # what about observation filter, such as FoV cut?
+    maker_safe = SafeMaskMaker(offset_max, energy_threshold, method, filter, ...)
+    dataset = mask_safe.run(dataset)
+
+
+MapDatasetMaker -> SafeMaskMaker -> BackgroundMaker
+
+Allow for PSF  EDISP maps as well as extraction of a singke PSF/ EDISP at a given source position.
+
+
+`SpectrumDatasetMaker`
+----------------------
+
+.. code::
+
+    maker = SpectrumDatasetMaker(on_region, energy_reco, energy_true)
+
+    dataset = maker.run(obs, steps=["counts", "background", "exposure", "psf", "edisp"])
+
+
+    maker_safe = SafeMaskMaker(energy_threshold, method, filter, ...)?
+    dataset = maker_safe.run(dataset)
+
+
+
+
+`Map Background Estimators`
+---------------------------
+Registry for background estimators? Config from high level interface?
+
+
+Reflected, ring, adaptive ring etc.
+
+
+Supports 3D, merge adaptive and non-adaptive into one class.
+
+
+
+.. code::
+
+    bkg_maker = FoVBackgroundMaker(exclusion_mask=, method=, ...)
+
+    map_dataset = bkg_maker.run(dataset)
+
+
+Fit background norm and tilt...how to keep track the background model parameters?
+Store it in the FITS meta?
+Write a default yaml model file?
+
+
+.. code::
+
+    bkg_maker = RingBackgroundMaker(r_in, r_out, ..., exclusion_mask,  adaptive=True)
+
+    map_dataset_onoff = bkg_maker.run(map_dataset)
+
+
+
+
+`ReflectedRegionsBackgroundMaker`
+---------------------------------
+
+.. code::
+
+    bkg_maker = ReflectedRegionBackgroundMaker()
+
+    spectrum_dataset_onoff = bkg_maker.run(obs)
+
+
+
+
+Use case of light curves:
+- Estimate background from full length observation, while the on counts are extracted in
+time intervals
+-
+
+
+
+
+
+`DatasetsMaker`?
 -------------------
-Loop over observations, parallelisation, bookkeeping, convenience.
+Loop over observations, parallelisation, bookkeeping, convenience?
+
+
+.. code::
+
+    maker = DatasetsMaker(dataset_maker=, background_maker=, safe_mask_maker=, time_intervals=?)
+    maker = DatasetsMaker(dataset_maker_config={}, background_maker_config={}, safe_mask_maker_config={}, time_intervals=?)
+
+    datasets = maker.run(observations, n_jobs=4)
+
+    maker.run_write(observations)
+
+
+    dataset = maker.run_stack(observations)
+
+
+    dataset = maker.stack(datasets)
+    dataset = datasets.stack()
+
+
+
+
+
+
 
 
 `.stack(datasets)`
@@ -137,14 +307,37 @@ Loop over observations, parallelisation, bookkeeping, convenience.
 
 
 
-`BackgroundEstimator`
----------------------
-Reflected, ring, adaptive ring etc.
 
 
 Outlook
 =======
-Change DL3 data format to precomputed background, exposure, edisp and psf maps.
+Change DL3 data format to precomputed background, exposure, edisp and psf maps?
+What about `MapDataset.to_spectrum_dataset(region, )`?
+
+
+
+
+
+What to do about real On / Off observations?
+
+.. code::
+
+    bkg_maker = OffBackgroundMaker()
+
+    dataset_on_off = bkg_maker.run(dataset, obs_off)
+
+    # dataset_on_off = bkg_maker.run(dataset, [dataset_off, ])
+
+
+A simple 1:1 correspondence could be implemented like shown above. How to handle
+the off observation list.
+
+Alternatively handle it on the dataset level by passing an already reduce off dataset...
+
+Requires FoV coordinates for maps...
+
+It's complicated...
+
 
 
 Task List
