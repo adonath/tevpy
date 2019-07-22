@@ -118,6 +118,21 @@ def test_map_dataset_str(sky_model, geom, geom_etrue):
 
 
 @requires_data()
+def test_map_dataset_residual(sky_model, geom, geom_etrue):
+    dataset = get_map_dataset(sky_model, geom, geom_etrue)
+    dataset.counts = dataset.npred() * 2
+
+    residuals = dataset.residuals()
+    assert_allclose(residuals.data[1, 50, 50], 0.474644, rtol=1e-4)
+
+    residuals = dataset.residuals(method="diff/model")
+    assert_allclose(residuals.data[1, 50, 50], 1, rtol=1e-4)
+
+    residuals = dataset.residuals(method="diff/sqrt(model)")
+    assert_allclose(residuals.data[1, 50, 50], 0.688944, rtol=1e-4)
+
+
+@requires_data()
 def test_map_dataset_fits_io(tmpdir, sky_model, geom, geom_etrue):
     dataset = get_map_dataset(sky_model, geom, geom_etrue)
     dataset.counts = dataset.npred()
