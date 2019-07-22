@@ -100,6 +100,16 @@ class TestSpectrumDataset:
                 background=self.bkg,
             )
 
+    def test_residuals(self):
+        residuals = self.dataset.residuals()
+        assert_allclose(residuals.data[12], -30.739045, rtol=1e-4)
+
+        residuals = self.dataset.residuals(method="diff/model")
+        assert_allclose(residuals.data[12], -0.001642, rtol=1e-4)
+
+        residuals = self.dataset.residuals(method="diff/sqrt(model)")
+        assert_allclose(residuals.data[12], -0.224668, rtol=1e-4)
+
     def test_set_model(self):
         aeff = EffectiveAreaTable.from_parametrization(self.src.energy.edges, "HESS")
         edisp = EnergyDispersion.from_diagonal_response(
@@ -148,12 +158,6 @@ class TestSpectrumOnOff:
             acceptance_off=np.ones(elo.shape) * 10,
             obs_id="test",
         )
-
-    def test_init_no_model(self):
-        with pytest.raises(AttributeError):
-            self.dataset.npred()
-
-        assert hasattr(self.dataset, "parameters") == False
 
     def test_alpha(self):
         assert self.dataset.alpha.shape == (4,)
