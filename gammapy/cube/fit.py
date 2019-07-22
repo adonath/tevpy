@@ -101,12 +101,10 @@ class MapDataset(Dataset):
             counts = np.sum(self.counts.data)
         str_ += "\t{:32}: {:.0f} \n".format("Total counts", counts)
 
-        npred = np.nan
-        if self.model is not None:
-            npred = np.sum(self.npred().data)
+        npred = np.sum(self.npred().data)
         str_ += "\t{:32}: {:.2f}\n".format("Total predicted counts", npred)
 
-        background = np.nan
+        background = 0
         if self.background_model is not None:
             background = np.sum(self.background_model.evaluate().data)
         str_ += "\t{:32}: {:.2f}\n\n".format("Total background counts", background)
@@ -130,17 +128,14 @@ class MapDataset(Dataset):
             n_bins = self.counts.data.size
         str_ += "\t{:32}: {} \n".format("Number of total bins", n_bins)
 
-        n_fit_bins = 0
+        n_fit_bins = n_bins
         if self.mask is not None:
             n_fit_bins = np.sum(self.mask)
         str_ += "\t{:32}: {} \n\n".format("Number of fit bins", n_fit_bins)
 
         # likelihood section
         str_ += "\t{:32}: {}\n".format("Fit statistic type", self.likelihood_type)
-
-        stat = np.nan
-        if self.model is not None:
-            stat = self.likelihood()
+        stat = self.likelihood()
         str_ += "\t{:32}: {:.2f}\n\n".format("Fit statistic value (-2 log(L))", stat)
 
         # model section
@@ -181,6 +176,7 @@ class MapDataset(Dataset):
                 info = str(model.spectral_model.parameters)
                 lines = info.split("\n")
                 str_ += "\t\t" + "\n\t\t".join(lines[2:-1])
+                str_ += "\n\n"
 
         if self.background_model is not None:
             try:
@@ -189,7 +185,7 @@ class MapDataset(Dataset):
                 background_models = [self.background_model]
 
             for idx, model in enumerate(background_models):
-                str_ += "\n\n\tBackground {}: \n".format(idx)
+                str_ += "\tBackground {}: \n".format(idx)
                 str_ += "\t\t{:28}: {}\n".format("Model type", self.background_model.__class__.__name__)
                 info = str(self.background_model.parameters)
                 lines = info.split("\n")
@@ -223,14 +219,14 @@ class MapDataset(Dataset):
     @property
     def parameters(self):
         """List of parameters (`~gammapy.utils.fitting.Parameters`)"""
-        if self.background_model:
-            parameters = Parameters(
-                self.model.parameters.parameters
-                + self.background_model.parameters.parameters
-            )
-        else:
-            parameters = Parameters(self.model.parameters.parameters)
-        return parameters
+        parameters = []
+        if self.model is not None:
+            parameters += self.model.parameters.parameters
+
+        if self.background_model is not None:
+            parameters += self.background_model.parameters.parameters
+
+        return Parameters(parameters)
 
     @property
     def _geom(self):
@@ -246,24 +242,25 @@ class MapDataset(Dataset):
 
     def npred(self):
         """Predicted source and background counts (`~gammapy.maps.Map`)."""
-        if self.background_model:
-            npred_total = self.background_model.evaluate()
-        else:
-            npred_total = Map.from_geom(self._geom)
+        npred_total = Map.from_geom(self._geom, dtype=float)
 
-        for evaluator in self._evaluators:
-            # if the model component drifts out of its support the evaluator has
-            # has to be updated
-            if evaluator.needs_update:
-                evaluator.update(self.exposure, self.psf, self.edisp, self._geom)
+        if self.background_model is not None:
+            npred_total += self.background_model.evaluate()
 
-            npred = evaluator.compute_npred()
+        if self.model is not None:
+            for evaluator in self._evaluators:
+                # if the model component drifts out of its support the evaluator has
+                # has to be updated
+                if evaluator.needs_update:
+                    evaluator.update(self.exposure, self.psf, self.edisp, self._geom)
 
-            # avoid slow fancy indexing, when the shape is equivalent
-            if npred.data.shape == npred_total.data.shape:
-                npred_total += npred.data
-            else:
-                npred_total.data[evaluator.coords_idx] += npred.data
+                npred = evaluator.compute_npred()
+
+                # avoid slow fancy indexing, when the shape is equivalent
+                if npred.data.shape == npred_total.data.shape:
+                    npred_total += npred.data
+                else:
+                    npred_total.data[evaluator.coords_idx] += npred.data
 
         return npred_total
 
