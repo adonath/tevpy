@@ -251,6 +251,15 @@ def test_flux_point_dataset_str(dataset):
 
 
 @requires_data()
+def test_flux_point_dataset_residuals(dataset):
+    residuals = dataset.residuals()
+    assert_allclose(residuals.data[4], -7.011198e-12, rtol=1e-4)
+
+    residuals = dataset.residuals(method="diff/model")
+    assert_allclose(residuals.data[4], -4.35023e-07, rtol=1e-4)
+
+
+@requires_data()
 class TestFluxPointFit:
     @requires_dependency("iminuit")
     def test_fit_pwl_minuit(self, fit):
