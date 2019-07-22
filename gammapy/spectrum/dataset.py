@@ -194,26 +194,26 @@ class SpectrumDataset(Dataset):
 
     def npred(self):
         """Returns npred map (model + background)"""
-        if self._predictor is None:
-            raise AttributeError("No model set for Dataset")
-        npred = self._predictor.compute_npred()
-        if self.background:
+        energy = self.counts.energy.edges
+        npred = CountsSpectrum(energy_lo=energy[:-1], energy_hi=energy[1:])
+
+        if self.background is not None:
             npred.data += self.background.data
+
+        if self.model is not None:
+            npred.data += self._predictor.compute_npred().data
+
         return npred
 
     def likelihood_per_bin(self):
         """Likelihood per bin given the current model parameters"""
         return cash(n_on=self.counts.data, mu_on=self.npred().data)
 
-    def _as_counts_spectrum(self, data):
-        energy = self.counts.energy.edges
-        return CountsSpectrum(data=data, energy_lo=energy[:-1], energy_hi=energy[1:])
-
     @property
     def excess(self):
         """Excess (counts - alpha * counts_off)"""
-        excess = self.counts.data - self.background.data
-        return self._as_counts_spectrum(excess)
+        excess = self.counts - self.background
+        return excess
 
     def fake(self, random_state="random-seed"):
         """Simulate a fake `~gammapy.spectrum.CountsSpectrum`.
@@ -441,8 +441,8 @@ class SpectrumDatasetOnOff(SpectrumDataset):
     @property
     def background(self):
         """"""
-        background = self.alpha * self.counts_off.data
-        return self._as_counts_spectrum(background)
+        background = self.counts_off * self.alpha
+        return background
 
     @property
     def alpha(self):

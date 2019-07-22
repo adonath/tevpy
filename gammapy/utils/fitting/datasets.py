@@ -65,7 +65,7 @@ class Dataset(abc.ABC):
             elif method == "diff/model":
                 residuals = (data - model) / model
             elif method == "diff/sqrt(model)":
-                residuals = (data - model) / np.sqrt(model)
+                residuals = (data - model) / np.sqrt(model.data)
             else:
                 raise AttributeError(
                     "Invalid method: {}. Choose between 'diff',"

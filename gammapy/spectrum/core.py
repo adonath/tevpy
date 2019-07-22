@@ -299,6 +299,3 @@ class CountsSpectrum:
 
     def __itruediv__(self, other):
         return self._arithmetics(np.true_divide, other, copy=False)
-
-    def __array__(self):
-        return self.data
