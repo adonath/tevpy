@@ -8,6 +8,7 @@ import numpy as np
 from ...utils.testing import requires_data, requires_dependency, mpl_plot_check
 from ...utils.random import get_random_state
 from ...irf import EffectiveAreaTable, EnergyDispersion
+from ...maps import MapAxis
 from ...utils.fitting import Fit
 from ..models import PowerLaw, ConstantModel, ExponentialCutoffPowerLaw
 from ...spectrum import (
@@ -26,7 +27,9 @@ class TestSpectrumDataset:
 
     def setup(self):
         self.nbins = 30
-        binning = np.logspace(-1, 1, self.nbins + 1) * u.TeV
+
+        energy_edges = np.logspace(-1, 1, self.nbins + 1) * u.TeV
+        energy_axis = MapAxis.from_edges(edges=energy_edges, name="energy", interp="log")
 
         self.source_model = PowerLaw(
             index=2.1, amplitude=1e5 / u.TeV / u.s, reference=0.1 * u.TeV
@@ -38,18 +41,18 @@ class TestSpectrumDataset:
         bkg_expected = bkg_rate * self.livetime
 
         self.bkg = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=bkg_expected
+            energy_axis=energy_axis, data=bkg_expected
         )
 
         random_state = get_random_state(23)
         self.npred = (
-            self.source_model.integral(binning[:-1], binning[1:]) * self.livetime
+            self.source_model.integral(energy_edges[:-1], energy_edges[1:]) * self.livetime
         )
         self.npred += bkg_expected
         source_counts = random_state.poisson(self.npred)
 
         self.src = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=source_counts
+            energy_axis=energy_axis, data=source_counts
         )
         self.dataset = SpectrumDataset(
             model=self.source_model,
@@ -128,18 +131,19 @@ class TestSpectrumOnOff:
 
     def setup(self):
         etrue = np.logspace(-1, 1, 10) * u.TeV
+
         self.e_true = etrue
-        ereco = np.logspace(-1, 1, 5) * u.TeV
-        elo = ereco[:-1]
-        ehi = ereco[1:]
+        e_reco = np.logspace(-1, 1, 5) * u.TeV
+        energy_axis = MapAxis.from_edges(e_reco, name="energy", interp="log")
 
         self.aeff = EffectiveAreaTable(etrue[:-1], etrue[1:], np.ones(9) * u.cm ** 2)
-        self.edisp = EnergyDispersion.from_diagonal_response(etrue, ereco)
+        self.edisp = EnergyDispersion.from_diagonal_response(etrue, e_reco)
 
-        data = np.ones(elo.shape)
+        data = np.ones(energy_axis.nbin)
         data[-1] = 0  # to test stats calculation with empty bins
-        self.on_counts = CountsSpectrum(elo, ehi, data)
-        self.off_counts = CountsSpectrum(elo, ehi, np.ones(elo.shape) * 10)
+
+        self.on_counts = CountsSpectrum(data=data, energy_axis=energy_axis)
+        self.off_counts = CountsSpectrum(energy_axis=energy_axis, data=np.ones(energy_axis.nbin) * 10)
 
         self.livetime = 1000 * u.s
 
@@ -149,8 +153,8 @@ class TestSpectrumOnOff:
             aeff=self.aeff,
             edisp=self.edisp,
             livetime=self.livetime,
-            acceptance=np.ones(elo.shape),
-            acceptance_off=np.ones(elo.shape) * 10,
+            acceptance=np.ones(energy_axis.nbin),
+            acceptance_off=np.ones(energy_axis.nbin) * 10,
             obs_id="test",
         )
 
@@ -294,10 +298,10 @@ class TestSpectrumOnOff:
         )
         real_dataset = dataset.copy()
         # Define background model counts
-        elo = self.on_counts.energy.edges[:-1]
-        ehi = self.on_counts.energy.edges[1:]
         data = np.ones(self.on_counts.data.shape)
-        background_model = CountsSpectrum(elo, ehi, data)
+
+        energy_axis = self.on_counts.energy.copy()
+        background_model = CountsSpectrum(energy_axis=energy_axis, data=data)
         dataset.fake(background_model=background_model, random_state=314)
 
         assert real_dataset.counts.data.shape == dataset.counts.data.shape
@@ -319,6 +323,7 @@ class TestSimpleFit:
     def setup(self):
         self.nbins = 30
         binning = np.logspace(-1, 1, self.nbins + 1) * u.TeV
+
         self.source_model = PowerLaw(
             index=2, amplitude=1e5 / u.TeV, reference=0.1 * u.TeV
         )
@@ -328,8 +333,10 @@ class TestSimpleFit:
         random_state = get_random_state(23)
         npred = self.source_model.integral(binning[:-1], binning[1:])
         source_counts = random_state.poisson(npred)
+
+        energy_axis = MapAxis.from_edges(binning, name="energy", interp="log")
         self.src = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=source_counts
+            energy_axis=energy_axis, data=source_counts
         )
         # Currently it's necessary to specify a lifetime
         self.src.livetime = 1 * u.s
@@ -339,10 +346,10 @@ class TestSimpleFit:
         bkg_counts = random_state.poisson(npred_bkg)
         off_counts = random_state.poisson(npred_bkg * 1.0 / self.alpha)
         self.bkg = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=bkg_counts
+            energy_axis=energy_axis, data=bkg_counts
         )
         self.off = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=off_counts
+            energy_axis=energy_axis, data=off_counts
         )
 
     def test_wstat(self):
@@ -474,20 +481,23 @@ def make_observation_list():
     """obs with dummy IRF"""
     nbin = 3
     energy = np.logspace(-1, 1, nbin + 1) * u.TeV
+
     livetime = 2 * u.h
     data_on = np.arange(nbin)
     dataoff_1 = np.ones(3)
     dataoff_2 = np.ones(3) * 3
     dataoff_1[1] = 0
     dataoff_2[1] = 0
+
+    energy_axis = MapAxis.from_edges(energy, name="energy", interp="log")
     on_vector = CountsSpectrum(
-        energy_lo=energy[:-1], energy_hi=energy[1:], data=data_on
+        energy_axis=energy_axis, data=data_on
     )
     off_vector1 = CountsSpectrum(
-        energy_lo=energy[:-1], energy_hi=energy[1:], data=dataoff_1
+        energy_axis=energy_axis, data=dataoff_1
     )
     off_vector2 = CountsSpectrum(
-        energy_lo=energy[:-1], energy_hi=energy[1:], data=dataoff_2
+        energy_axis=energy_axis, data=dataoff_2
     )
     aeff = EffectiveAreaTable(
         energy_lo=energy[:-1], energy_hi=energy[1:], data=np.ones(nbin) * 1e5 * u.m ** 2

@@ -3,6 +3,7 @@ import pytest
 from numpy.testing import assert_allclose
 import numpy as np
 import astropy.units as u
+from ...maps import MapAxis
 from ...utils.testing import requires_data
 from ...irf import EffectiveAreaTable, EnergyDispersion
 from ..core import CountsSpectrum
@@ -23,8 +24,10 @@ def sens():
 
     bkg_array = np.ones(4)
     bkg_array[-1] = 1e-3
+
+    energy_axis = MapAxis.from_edges(ereco, name="energy", interp="log")
     bkg = CountsSpectrum(
-        energy_lo=ereco[:-1], energy_hi=ereco[1:], data=bkg_array, unit="s-1"
+        energy_axis=energy_axis, data=bkg_array, unit="s-1"
     )
 
     sens = SensitivityEstimator(

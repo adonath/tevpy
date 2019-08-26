@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import pytest
 import astropy.units as u
+from ...maps import MapAxis
 from ...utils.testing import (
     requires_dependency,
     mpl_plot_check,
@@ -14,14 +15,17 @@ class TestCountsSpectrum:
     def setup(self):
         self.counts = [0, 0, 2, 5, 17, 3]
         self.bins = energy_logspace(1, 10, 7, "TeV")
+
+        energy_axis = MapAxis.from_edges(self.bins, name="energy", interp="log")
         self.spec = CountsSpectrum(
-            data=self.counts, energy_lo=self.bins[:-1], energy_hi=self.bins[1:]
+            data=self.counts, energy_axis=energy_axis,
         )
 
     def test_wrong_init(self):
         bins = energy_logspace(1, 10, 8, "TeV")
+        energy_axis = MapAxis.from_edges(bins, name="energy", interp="log")
         with pytest.raises(ValueError):
-            CountsSpectrum(data=self.counts, energy_lo=bins[:-1], energy_hi=bins[1:])
+            CountsSpectrum(data=self.counts, energy_axis=energy_axis)
 
     @requires_dependency("matplotlib")
     def test_plot(self):

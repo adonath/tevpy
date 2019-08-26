@@ -9,6 +9,8 @@ from .utils import SpectrumEvaluator
 from ..utils.scripts import make_path
 from ..utils.fitting import Dataset, Parameters
 from ..utils.fits import energy_axis_to_ebounds
+from ..maps import MapAxis
+from ..maps.utils import edges_from_lo_hi
 from ..stats import wstat, cash
 from ..utils.random import get_random_state
 from ..data import ObservationStats
@@ -689,8 +691,10 @@ class SpectrumDatasetOnOff(SpectrumDataset):
         with fits.open(str(filename), memmap=False) as hdulist:
             data = _read_ogip_hdulist(hdulist)
 
+        edges = edges_from_lo_hi(data["energy_lo"], data["energy_hi"])
+        energy_axis = MapAxis.from_edges(edges, name="energy", interp="log")
         counts = CountsSpectrum(
-            energy_hi=data["energy_hi"], energy_lo=data["energy_lo"], data=data["data"]
+            energy_axis=energy_axis, data=data["data"]
         )
 
         phafile = filename.name
@@ -708,9 +712,12 @@ class SpectrumDatasetOnOff(SpectrumDataset):
 
             with fits.open(str(filename), memmap=False) as hdulist:
                 data_bkg = _read_ogip_hdulist(hdulist)
+
+                edges = edges_from_lo_hi(data_bkg["energy_lo"], data_bkg["energy_hi"])
+                energy_axis = MapAxis.from_edges(edges, name="energy", interp="log")
+
                 counts_off = CountsSpectrum(
-                    energy_hi=data_bkg["energy_hi"],
-                    energy_lo=data_bkg["energy_lo"],
+                    energy_axis=energy_axis,
                     data=data_bkg["data"],
                 )
 
@@ -901,7 +908,7 @@ class SpectrumDatasetOnOffStacker:
 
         self.stacked_quality = stacked_quality
         return CountsSpectrum(
-            data=stacked_data, energy_lo=energy.edges[:-1], energy_hi=energy.edges[1:]
+            data=stacked_data, energy_axis=energy.copy()
         )
 
     def stack_backscal(self):

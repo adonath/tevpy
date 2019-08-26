@@ -2,6 +2,7 @@
 import astropy.units as u
 import numpy as np
 from numpy.testing import assert_allclose
+from ...maps import MapAxis
 from ...utils.testing import requires_data, requires_dependency
 from ...utils.random import get_random_state
 from ...utils.fitting import Fit
@@ -33,8 +34,10 @@ class TestFit:
         random_state = get_random_state(23)
         npred = self.source_model.integral(binning[:-1], binning[1:])
         source_counts = random_state.poisson(npred)
+
+        energy_axis = MapAxis.from_edges(binning, name="energy", interp="log")
         self.src = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=source_counts
+            energy_axis=energy_axis, data=source_counts
         )
         # Currently it's necessary to specify a lifetime
         self.src.livetime = 1 * u.s
@@ -44,10 +47,10 @@ class TestFit:
         bkg_counts = random_state.poisson(npred_bkg)
         off_counts = random_state.poisson(npred_bkg * 1.0 / self.alpha)
         self.bkg = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=bkg_counts
+            energy_axis=energy_axis, data=bkg_counts
         )
         self.off = CountsSpectrum(
-            energy_lo=binning[:-1], energy_hi=binning[1:], data=off_counts
+            energy_axis=energy_axis, data=off_counts
         )
 
     def test_cash(self):

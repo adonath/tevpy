@@ -6,7 +6,6 @@ from astropy.table import Table
 from astropy.io import fits
 import astropy.units as u
 from ..maps import MapAxis
-from ..maps.utils import edges_from_lo_hi
 from ..utils.scripts import make_path
 from ..utils.fits import energy_axis_to_ebounds, ebounds_to_energy_axis
 from ..data import EventList
@@ -21,10 +20,8 @@ class CountsSpectrum:
 
     Parameters
     ----------
-    energy_lo : `~astropy.units.Quantity`
+    energy_axis : `~gammapy.maps.MapAxis`
         Lower bin edges of energy axis
-    energy_hi : `~astropy.units.Quantity`
-        Upper bin edges of energy axis
     data : `~numpy.ndarray`
         Spectrum data.
     unit : str or `~astropy.units.Unit`
@@ -49,9 +46,11 @@ class CountsSpectrum:
         spec.plot(show_poisson_errors=True)
     """
 
-    def __init__(self, energy_lo, energy_hi, data=None, unit=""):
-        e_edges = edges_from_lo_hi(energy_lo, energy_hi)
-        self.energy = MapAxis.from_edges(e_edges, interp="log", name="energy")
+    def __init__(self, energy_axis, data=None, unit=""):
+        if not energy_axis.name == "energy":
+            raise ValueError("Energy axis name must be 'energy'.")
+
+        self.energy = energy_axis
 
         if data is None:
             data = np.zeros(self.energy.nbin)
@@ -76,8 +75,9 @@ class CountsSpectrum:
         """Read from HDU list in OGIP format."""
         counts_table = Table.read(hdulist[hdu1])
         counts = counts_table["COUNTS"].data
-        ebounds = ebounds_to_energy_axis(hdulist[hdu2])
-        return cls(data=counts, energy_lo=ebounds[:-1], energy_hi=ebounds[1:])
+        edges = ebounds_to_energy_axis(hdulist[hdu2])
+        energy_axis = MapAxis.from_edges(edges, name="energy", interp="log")
+        return cls(data=counts, energy_axis=energy_axis)
 
     @classmethod
     def read(cls, filename, hdu1="COUNTS", hdu2="EBOUNDS"):
@@ -246,8 +246,8 @@ class CountsSpectrum:
         from ..extern.skimage import block_reduce
 
         data = block_reduce(self.data, block_size=(factor,))
-        energy = self.energy.downsample(factor).edges
-        return self.__class__(energy_lo=energy[:-1], energy_hi=energy[1:], data=data)
+        energy_axis = self.energy.downsample(factor)
+        return self.__class__(energy_axis=energy_axis, data=data)
 
     def energy_mask(self, emin=None, emax=None):
         """Create a mask for a given energy range.

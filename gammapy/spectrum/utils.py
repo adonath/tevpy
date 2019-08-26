@@ -1,6 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import numpy as np
 from astropy.units import Quantity
+from ..maps import MapAxis
 
 __all__ = ["SpectrumEvaluator", "integrate_spectrum"]
 
@@ -99,8 +100,9 @@ class SpectrumEvaluator:
             cts = true_counts
             self.e_reco = self.e_true
 
+        energy_axis = MapAxis.from_edges(self.e_reco, name="energy", interp="log")
         return CountsSpectrum(
-            data=cts, energy_lo=self.e_reco[:-1], energy_hi=self.e_reco[1:]
+            data=cts, energy_axis=energy_axis
         )
 
 

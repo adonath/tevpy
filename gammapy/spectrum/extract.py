@@ -5,6 +5,7 @@ import numpy as np
 import astropy.units as u
 from regions import CircleSkyRegion
 from ..utils.scripts import make_path
+from ..maps import MapAxis
 from ..irf import PSF3D, apply_containment_fraction, compute_energy_thresholds
 from .core import CountsSpectrum
 from .dataset import SpectrumDatasetOnOff
@@ -166,10 +167,8 @@ class SpectrumExtraction:
         offset = observation.pointing_radec.separation(bkg.on_region.center)
         log.info("Offset : {}\n".format(offset))
 
-        self._on_vector = CountsSpectrum(
-            energy_lo=self.e_reco[:-1], energy_hi=self.e_reco[1:]
-        )
-
+        energy_axis = MapAxis.from_edges(self.e_reco, name="energy", interp="log")
+        self._on_vector = CountsSpectrum(energy_axis=energy_axis)
         self._off_vector = self._on_vector.copy()
 
     def extract_counts(self, bkg):
