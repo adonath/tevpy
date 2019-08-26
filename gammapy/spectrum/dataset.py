@@ -217,15 +217,10 @@ class SpectrumDataset(Dataset):
         """Likelihood per bin given the current model parameters"""
         return cash(n_on=self.counts.data, mu_on=self.npred().data)
 
-    def _as_counts_spectrum(self, data):
-        energy = self.counts.energy.edges
-        return CountsSpectrum(data=data, energy_lo=energy[:-1], energy_hi=energy[1:])
-
     @property
     def excess(self):
         """Excess (counts - alpha * counts_off)"""
-        excess = self.counts.data - self.background.data
-        return self._as_counts_spectrum(excess)
+        return self.counts - self.background
 
     def fake(self, random_state="random-seed"):
         """Simulate fake counts for the current model and reduced irfs.
@@ -460,8 +455,8 @@ class SpectrumDatasetOnOff(SpectrumDataset):
     @property
     def background(self):
         """"""
-        background = self.alpha * self.counts_off.data
-        return self._as_counts_spectrum(background)
+        background = self.counts_off * self.alpha
+        return background
 
     @property
     def alpha(self):
