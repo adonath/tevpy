@@ -336,10 +336,13 @@ class EventListBase:
 
     def _counts_spectrum(self, ebounds):
         from ..spectrum import CountsSpectrum
+        from ..maps import MapAxis
 
         if not ebounds:
             ebounds = self._default_plot_ebounds()
-        spec = CountsSpectrum(energy_lo=ebounds[:-1], energy_hi=ebounds[1:])
+
+        energy_axis = MapAxis.from_edges(ebounds, name="energy", interp="log")
+        spec = CountsSpectrum(energy_axis=energy_axis)
         spec.fill(self.energy)
         return spec
 

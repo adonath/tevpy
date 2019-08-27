@@ -598,9 +598,8 @@ class WcsNDMap(WcsMap):
         else:
             data = func(self.data, axis=(1, 2))
 
-        edges = energy_axis.edges
         return CountsSpectrum(
-            data=data, energy_lo=edges[:-1], energy_hi=edges[1:], unit=self.unit
+            data=data, energy_axis=energy_axis.copy(), unit=self.unit
         )
 
     def convolve(self, kernel, use_fft=True, **kwargs):
