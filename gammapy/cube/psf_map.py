@@ -3,7 +3,7 @@ import numpy as np
 import astropy.io.fits as fits
 import astropy.units as u
 from astropy.coordinates import Angle
-from ..cube import PSFKernel
+from .psf_kernel import PSFKernel
 from ..irf import EnergyDependentTablePSF
 from ..maps import Map
 

@@ -6,7 +6,7 @@ from astropy.io import fits
 from astropy.nddata.utils import NoOverlapError
 from astropy.utils import lazyproperty
 from ..irf import EnergyDispersion
-from ..maps import Map
+from ..maps import Map, MapAxis
 from ..stats import cash, cash_sum_cython, cstat, cstat_sum_cython
 from ..utils.fitting import Dataset, Parameters
 from ..utils.random import get_random_state
@@ -22,6 +22,10 @@ __all__ = ["MapEvaluator", "MapDataset"]
 log = logging.getLogger(__name__)
 
 CUTOUT_MARGIN = 0.1 * u.deg
+
+RAD_MAX = 0.6656057834625244
+RAD_AXIS_DEFAULT = MapAxis.from_bounds(0, RAD_MAX, nbin=144, node_type="edges", name="theta", unit="deg")
+MIGRA_AXIS_DEFAULT = MapAxis.from_bounds(0.2, 5, nbin=160, node_type="edges", name="migra")
 
 
 class MapDataset(Dataset):
@@ -579,15 +583,21 @@ class MapDataset(Dataset):
             self.exposure.stack(other.exposure, weights=weights)
 
     @classmethod
-    def create(cls, geom, geom_irf):
+    def create(cls, geom, energy_axis_true=None, rad_axis=None, migra_axis=None, binsz_irf="0.2 deg"):
         """Create empty MapDataset from geoms.
 
         Parameters
         ----------
         geom : `MapGeom`
-            Map geometry.
-        geom_irf : `MapGeom`
-            IRF map geometry.
+            Map geometry used for counts and background. Defined in reconstructed energy.
+        energy_axis_true : `MapAxis`
+            True energy axis used for PSF, EDISP and exposure map.
+        rad_axis : `MapAxis`
+            Rad axis for the PSF map.
+        migra_axis : `MapAxis`
+            Migra axis for the energy dispersion map.
+        binsz_irf : `~astropy.units.Quantity`
+            Bin size used for the PSF and EDISP maps.
 
         Returns
         -------
@@ -597,58 +607,39 @@ class MapDataset(Dataset):
         counts = Map.from_geom(geom)
         background = Map.from_geom(geom)
         background_model = BackgroundModel(background)
-        exposure = Map.from_geom(geom_irf)
 
-        # TODO: change axis order in EDispMap and PSFMap, that energy axis comes first
-        geom_image = geom_irf.to_image()
-        energy_axis = geom_irf.get_axis_by_name("energy")
+        if energy_axis_true is None:
+            energy_axis_true = geom.get_axis_by_name("energy").copy()
 
-        # TODO: how to get the defaults for migra and rad axis?
-        rad_max = 0.6656057834625244
-        rad_axis = MapAxis.from_bounds(0, rad_max, nbin=144, node_type="edges", name="theta", unit="deg")
-        geom_psf = geom_image.to_cube([rad_axis, energy_axis])
+        # TODO: pad the exposure maps at the edges
+        geom_exposure = geom.to_image().to_cube(axes=[energy_axis_true])
+        exposure = Map.from_geom(geom_exposure)
+
+        binsz_irf = u.Quantity(binsz_irf)
+        factor = int(np.mean(binsz_irf / geom.pixel_scales))
+        geom_image = geom.to_image().downsample(factor=factor)
+
+        if rad_axis is None:
+            rad_axis = RAD_AXIS_DEFAULT
+
+        geom_psf = geom_image.to_cube([rad_axis, energy_axis_true])
         psf = Map.from_geom(geom_psf, unit="sr-1")
 
-        migra_axis = MapAxis.from_bounds(0.2, 5, nbin=160, node_type="edges", name="migra")
-        geom_edisp = geom_image.to_cube([migra_axis, energy_axis])
+        if migra_axis is None:
+            migra_axis = MIGRA_AXIS_DEFAULT
+
+        geom_edisp = geom_image.to_cube([migra_axis, energy_axis_true])
         edisp = Map.from_geom(geom_edisp)
+
+        geom_exposure_irf = geom_image.to_cube([energy_axis_true])
+        exposure_irf = Map.from_geom(geom_exposure_irf)
 
         return cls(
             counts=counts,
             exposure=exposure,
             background_model=background_model,
-            edisp=EDispMap(edisp, exposure_map=exposure),
-            psf=PSFMap(psf, exposure_map=exposure)
-        )
-
-    def to_image(self, spectrum=None, keepdims=True):
-        """Convert map dataset
-
-
-        Parameters
-        ----------
-        spectrum : `SpectralModel`
-            Spectral model assumption.
-        keepdims : bool
-            Keep dimensions.
-
-        Returns
-        -------
-        dataset : `MapDataset`
-            Map dataset with images.
-        """
-
-        counts = self.counts.sum_over_axes(keepdims=keepdims)
-        background = self.background_model.sum_over_axes(keepdims=keepdims)
-        exposure = _map_spectrum_weight(self.exposure, spectrum)
-
-        # TODO: handle PSF map
-        return self.__class__(
-            counts=counts,
-            exposure=exposure,
-            background_model=background_model,
-            edisp=None,
-            psf=None,
+            edisp=EDispMap(edisp, exposure_map=exposure_irf),
+            psf=PSFMap(psf, exposure_map=exposure_irf)
         )
 
 
