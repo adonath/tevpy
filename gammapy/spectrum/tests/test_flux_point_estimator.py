@@ -17,6 +17,7 @@ from gammapy.spectrum import (
     FluxPointsEstimator,
     SpectrumDatasetOnOff,
     SpectrumEvaluator,
+    CountsSpectrum
 )
 from gammapy.utils.testing import requires_data, requires_dependency
 
@@ -31,7 +32,8 @@ def simulate_spectrum_dataset(model, random_state=0):
         aeff=aeff, model=model, livetime=100 * u.h, acceptance=1, acceptance_off=5
     )
 
-    eval = SpectrumEvaluator(model=bkg_model, aeff=aeff, livetime=100 * u.h)
+    exposure = aeff.to_exposure(livetime=100 * u.h)
+    eval = SpectrumEvaluator(model=bkg_model, exposure=exposure)
 
     bkg_model = eval.compute_npred()
     dataset.fake(random_state=random_state, background_model=bkg_model)

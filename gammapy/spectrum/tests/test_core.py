@@ -60,6 +60,23 @@ class TestCountsSpectrum:
 def get_test_cases():
     e_true = Quantity(np.logspace(-1, 2, 120), "TeV")
     e_reco = Quantity(np.logspace(-1, 2, 100), "TeV")
+
+    aeff = EffectiveAreaTable.from_parametrization(e_true)
+
+    exposure = CountsSpectrum(
+        data=(aeff.data.data * 10 * u.h).to_value("cm2 s"),
+        energy_lo=aeff.energy.edges[:-1],
+        energy_hi=aeff.energy.edges[1:],
+        unit="cm2 s"
+    )
+
+    exposure_2 = CountsSpectrum(
+        data=(aeff.data.data * 30 * u.h).to_value("cm2 s"),
+        energy_lo=aeff.energy.edges[:-1],
+        energy_hi=aeff.energy.edges[1:],
+        unit="cm2 s"
+    )
+
     return [
         dict(model=PowerLaw(amplitude="1e2 TeV-1"), e_true=e_true, npred=999),
         dict(
@@ -69,23 +86,20 @@ def get_test_cases():
         ),
         dict(
             model=PowerLaw(amplitude="1e-11 TeV-1 cm-2 s-1"),
-            aeff=EffectiveAreaTable.from_parametrization(e_true),
-            livetime="10 h",
+            exposure=exposure,
             npred=1448.05960,
         ),
         dict(
             model=PowerLaw(reference="1 GeV", amplitude="1e-11 GeV-1 cm-2 s-1"),
-            aeff=EffectiveAreaTable.from_parametrization(e_true),
-            livetime="30 h",
+            exposure=exposure_2,
             npred=4.34417881,
         ),
         dict(
             model=PowerLaw(amplitude="1e-11 TeV-1 cm-2 s-1"),
-            aeff=EffectiveAreaTable.from_parametrization(e_true),
+            exposure=exposure,
             edisp=EnergyDispersion.from_gauss(
                 e_reco=e_reco, e_true=e_true, bias=0, sigma=0.2
             ),
-            livetime="10 h",
             npred=1437.450076,
         ),
         dict(

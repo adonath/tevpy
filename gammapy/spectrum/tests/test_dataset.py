@@ -106,7 +106,7 @@ class TestSpectrumDataset:
             self.src.energy.edges, self.src.energy.edges
         )
         dataset = SpectrumDataset(
-            None, self.src, self.livetime, None, aeff, edisp, self.bkg
+            counts=self.src, livetime=self.livetime, aeff=aeff, edisp=edisp, background=self.bkg
         )
         with pytest.raises(AttributeError):
             dataset.parameters
