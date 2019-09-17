@@ -834,11 +834,17 @@ class FluxPointsEstimator:
 
     def _set_scale_model(self):
         # set the model on all datasets
+        dataset = self.datasets.datasets[0]
+
+        if isinstance(dataset, SpectrumDatasetOnOff):
+            model = self.model
+        else:
+            model = dataset.model
+            source_model = model[self.source].copy(spectral_model=self.model, name=self.source)
+            model[self.source] = source_model
+
         for dataset in self.datasets.datasets:
-            if isinstance(dataset, SpectrumDatasetOnOff):
-                dataset.model = self.model
-            else:
-                dataset.model[self.source].spectral_model = self.model
+            dataset.model = model
 
     @property
     def ref_model(self):

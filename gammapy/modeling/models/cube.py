@@ -169,6 +169,13 @@ class SkyModels:
         idx = self.names.index(item)
         return self.skymodels[idx]
 
+    def __setitem__(self, item, value):
+        if not isinstance(value, SkyModel):
+            raise TypeError("Expect a `SkyModel` object.")
+
+        idx = self.names.index(item)
+        self.skymodels[idx] = value
+
 
 class SkyModel(SkyModelBase):
     """Sky model component.
@@ -227,15 +234,6 @@ class SkyModel(SkyModelBase):
     def spectral_model(self):
         """`~gammapy.modeling.models.SpectralModel`"""
         return self._spectral_model
-
-    @spectral_model.setter
-    def spectral_model(self, model):
-        """`~gammapy.modeling.models.SpectralModel`"""
-        self._spectral_model = model
-        self._parameters = Parameters(
-            self.spatial_model.parameters.parameters
-            + self.spectral_model.parameters.parameters
-        )
 
     @property
     def position(self):
