@@ -246,5 +246,5 @@ def test_lightcurve_estimator_map_datasets():
     assert_allclose(lightcurve.table["loglike"], [-86541.447142, -89740.436161])
     assert_allclose(lightcurve.table["norm_err"], [0.042729, 0.042469], rtol=1e-3)
     assert_allclose(lightcurve.table["counts"], [46648, 47321])
-    assert_allclose(lightcurve.table["sqrt_ts"], [54.034112, 53.920883], atol=0.01)
-    assert_allclose(lightcurve.table["ts"], [2919.685309, 2907.461611], atol=0.01)
+    assert_allclose(lightcurve.table["sqrt_ts"], [53.99645 , 53.873966], atol=0.01)
+    assert_allclose(lightcurve.table["ts"], [2915.616631, 2902.404209], atol=0.01)
