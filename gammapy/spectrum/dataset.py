@@ -7,6 +7,7 @@ from astropy.table import Table
 from gammapy.data import GTI, ObservationStats
 from gammapy.irf import EffectiveAreaTable, EnergyDispersion, IRFStacker
 from gammapy.modeling import Dataset, Parameters
+from gammapy.modeling.models import SkyModel, SkyModels
 from gammapy.stats import cash, wstat
 from gammapy.utils.fits import energy_axis_to_ebounds
 from gammapy.utils.random import get_random_state
@@ -25,8 +26,8 @@ class SpectrumDataset(Dataset):
 
     Parameters
     ----------
-    model : `~gammapy.modeling.models.SpectralModel`
-        Fit model
+    model : `~gammapy.modeling.models.SkyModel` or `~gammapy.modeling.models.SkyModels`
+        Source sky models.
     counts : `~gammapy.spectrum.CountsSpectrum`
         Counts spectrum
     livetime : `~astropy.units.Quantity`
@@ -159,12 +160,25 @@ class SpectrumDataset(Dataset):
         return str_.expandtabs(tabsize=4)
 
     @property
+    def exposure(self):
+        """Return exposure (`CountsSpectrum`)"""
+        return CountsSpectrum(
+            data=self.aeff.data * self.livetime,
+            energy_lo=self.aeff.energy,
+            energy_hi=self.aeff.energy,
+        )
+
+    @property
     def model(self):
         return self._model
 
     @model.setter
     def model(self, model):
+        if isinstance(model, SkyModel):
+            model = SkyModels([model])
+
         self._model = model
+
         if model is not None:
             self._parameters = Parameters(self._model.parameters.parameters)
             self._predictor = SpectrumEvaluator(
