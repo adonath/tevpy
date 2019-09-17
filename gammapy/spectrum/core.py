@@ -349,48 +349,35 @@ class SpectrumEvaluator:
         plt.show()
     """
 
-    def __init__(self, model, aeff=None, edisp=None, livetime=None, e_true=None):
+    def __init__(self, model, exposure=None, edisp=None,  e_true=None):
         self.model = model
-        self.aeff = aeff
+        self.exposure = exposure
         self.edisp = edisp
-        self.livetime = livetime
 
-        if aeff is not None:
-            e_true = self.aeff.energy.edges
+        if exposure is not None:
+            e_true = exposure.energy.edges
 
         self.e_true = e_true
-        self.e_reco = None
+
+        if edisp is not None:
+            e_reco = self.edisp.e_reco.edges
+        else:
+            e_reco = e_true
+
+        self.e_reco = e_reco
 
     def compute_npred(self):
-        integral_flux = self.model.integral(
+        npred = self.model.integral(
             emin=self.e_true[:-1], emax=self.e_true[1:], intervals=True
         )
 
-        true_counts = self.apply_aeff(integral_flux)
-        return self.apply_edisp(true_counts)
-
-    def apply_aeff(self, integral_flux):
-        if self.aeff is not None:
-            cts = integral_flux * self.aeff.data.data
-        else:
-            cts = integral_flux
-
-        # Multiply with livetime if not already contained in aeff or model
-        if cts.unit.is_equivalent("s-1"):
-            cts *= self.livetime
-
-        return cts.to("")
-
-    def apply_edisp(self, true_counts):
-        from . import CountsSpectrum
+        if self.exposure is not None:
+            npred = (self.exposure.quantity * npred).to("")
 
         if self.edisp is not None:
-            cts = self.edisp.apply(true_counts)
-            self.e_reco = self.edisp.e_reco.edges
-        else:
-            cts = true_counts
-            self.e_reco = self.e_true
+            npred = self.edisp.apply(npred)
 
         return CountsSpectrum(
-            data=cts, energy_lo=self.e_reco[:-1], energy_hi=self.e_reco[1:]
+            data=npred, energy_lo=self.e_reco[:-1], energy_hi=self.e_reco[1:]
         )
+

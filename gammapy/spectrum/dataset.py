@@ -162,10 +162,21 @@ class SpectrumDataset(Dataset):
     @property
     def exposure(self):
         """Return exposure (`CountsSpectrum`)"""
+        # TODO: change the internal data model to exposure and get rid of this property
+        if self.aeff is not None and self.livetime is not None:
+            return self.aeff.to_exposure(self.livetime)
+        elif self.livetime is not None:
+            data = np.ones(self.data_shape) * self.livetime
+            energy = self._energy_axis.edges
+        else:
+            data = u.Quantity(np.ones(self.data_shape), unit="")
+            energy = self._energy_axis.edges
+
         return CountsSpectrum(
-            data=self.aeff.data * self.livetime,
-            energy_lo=self.aeff.energy,
-            energy_hi=self.aeff.energy,
+            data=data.value,
+            energy_lo=energy[:-1],
+            energy_hi=energy[1:],
+            unit=data.unit
         )
 
     @property
@@ -183,9 +194,7 @@ class SpectrumDataset(Dataset):
             self._parameters = Parameters(self._model.parameters.parameters)
             self._predictor = SpectrumEvaluator(
                 model=self.model,
-                livetime=self.livetime,
-                aeff=self.aeff,
-                e_true=self._energy_axis.edges,
+                exposure=self.exposure,
                 edisp=self.edisp,
             )
         else:
