@@ -305,6 +305,28 @@ class EffectiveAreaTable:
             specresp=table["SPECRESP"].quantity.to_value("cm2"),
         )
 
+    def to_exposure(self, livetime):
+        """Compute exposure from effective area.
+
+        Parameters
+        ----------
+        livetime : `~astropy.units.Quantity`
+            Livetime
+
+        Returns
+        -------
+        exposure : `CountsSpectrum`
+            Exposure
+        """
+        from gammapy.spectrum import CountsSpectrum
+        data = self.data.data * livetime
+        return CountsSpectrum(
+            data=data.value,
+            energy_lo=self.energy.edges[:-1],
+            energy_hi=self.energy.edges[1:],
+            unit=data.unit
+        )
+
 
 class EffectiveAreaTable2D:
     """2D effective area table.
