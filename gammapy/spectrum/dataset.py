@@ -91,6 +91,9 @@ class SpectrumDataset(Dataset):
     def __str__(self):
         str_ = self.__class__.__name__
         str_ += "\n\n"
+
+        str_ += "\t{:32}: {:.0f} \n\n".format("Name (obs-id)", self.obs_id)
+
         counts = np.nan
         if self.counts is not None:
             counts = np.sum(self.counts.data)
@@ -578,7 +581,7 @@ class SpectrumDatasetOnOff(SpectrumDataset):
         if self.acceptance is not None:
             acceptance = np.mean(self.acceptance)
 
-        str_ += "\t{:32}: {}\n".format("Acceptance mean:", acceptance)
+        str_ += "\n\t{:32}: {}\n".format("Acceptance mean:", acceptance)
         return str_.expandtabs(tabsize=4)
 
     @property
