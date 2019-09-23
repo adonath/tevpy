@@ -7,6 +7,7 @@ from astropy.coordinates import Angle
 from gammapy.irf import EnergyDependentTablePSF
 from gammapy.maps import Map, MapCoord
 from gammapy.utils.random import InverseCDFSampler, get_random_state
+from gammapy.maps import Map, MapAxis
 from .psf_kernel import PSFKernel
 
 __all__ = ["make_psf_map", "PSFMap"]
@@ -344,6 +345,26 @@ class PSFMap:
         exposure_psf = Map.from_geom(geom_exposure_psf, unit="m2 s")
         psf_map = Map.from_geom(geom, unit="sr-1")
         return cls(psf_map, exposure_psf)
+
+    def from_table_psf(cls, table_psf):
+        """Create PSF map from table PSF object.
+
+        Parameters
+        ----------
+        table_psf : `EnergyDependentTablePSF`
+            Table PSF
+
+        Returns
+        -------
+        psf_map : `PSFMap`
+            Point spread function map.
+        """
+        energy_axis = MapAxis.from_edges(table_psf.energy, name="energy")
+        rad_axis = MapAxis.from_edges(table_psf.rad, name="theta")
+
+        geom_image = WcsGeom.create(binsz=180)
+        geom = geom_image.to_cube([rad_axis, energy_axis])
+        return cls(psf_map=, exposure_map=)
 
     def sample_coord(self, map_coord, random_state=0):
         """Apply PSF corrections on the coordinates of a set of simulated events.

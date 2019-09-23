@@ -295,6 +295,30 @@ class EDispMap:
             data=data,
         )
 
+    @classmethod
+    def from_energy_dispersion(cls, edisp, exposure_map):
+        """Create `EdispMap` from `EnergyDispersion` object.
+
+        Parameters
+        ----------
+        edisp : `EnergyDispersion`
+
+
+        Returns
+        -------
+        edisp_map : `EDispMap`
+            Energy dispersion map.
+
+        """
+        factor = 1
+        exposure_map = exposure_map.downsample(factor=factor, preserve_counts=False)
+        e_true = exposure_map.geom.get_axis_by_name("energy").edges
+        migra = edisp.get_bias(e_true=e_true) + 1
+
+        return cls(edisp_map, exposure_map)
+
+
+
     def stack(self, other):
         """Stack EDispMap with another one.
 
