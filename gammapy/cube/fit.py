@@ -1384,10 +1384,11 @@ class MapEvaluator:
         # cache current position of the model component
 
         # TODO: lookup correct Edisp for this component
-        self.edisp = edisp
+        e_reco = geom.get_axis_by_name("energy").edges
+        self.edisp = edisp.get_energy_dispersion(self.model.position, e_reco=e_reco)
 
         # TODO: lookup correct PSF for this component
-        self.psf = psf
+        self.psf = psf.get_psf_kernel(self.model.position, geom=self.geom, max_radius="0.5 deg")
 
         if self.evaluation_mode == "local" and self.model.evaluation_radius is not None:
             self._init_position = self.model.position
