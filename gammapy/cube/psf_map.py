@@ -5,9 +5,8 @@ import astropy.io.fits as fits
 import astropy.units as u
 from astropy.coordinates import Angle
 from gammapy.irf import EnergyDependentTablePSF
-from gammapy.maps import Map, MapCoord
+from gammapy.maps import Map, MapCoord, MapAxis, WcsGeom
 from gammapy.utils.random import InverseCDFSampler, get_random_state
-from gammapy.maps import Map, MapAxis
 from .psf_kernel import PSFKernel
 
 __all__ = ["make_psf_map", "PSFMap"]
@@ -239,7 +238,7 @@ class PSFMap:
             "theta": rad.reshape((1, -1, 1, 1))
         }
 
-        data = self.psf_map.interp_by_coord(coords)
+        data = self.psf_map.get_by_coord(coords)
         psf_values = u.Quantity(data.squeeze(), unit=self.psf_map.unit, copy=False)
         return EnergyDependentTablePSF(energy=energy, rad=rad, psf_value=psf_values)
 
@@ -349,6 +348,9 @@ class PSFMap:
     def from_table_psf(cls, table_psf):
         """Create PSF map from table PSF object.
 
+        Helper function to create an allsky PSF map from
+        table PSF, which does not depend on position.
+
         Parameters
         ----------
         table_psf : `EnergyDependentTablePSF`
@@ -359,12 +361,16 @@ class PSFMap:
         psf_map : `PSFMap`
             Point spread function map.
         """
-        energy_axis = MapAxis.from_edges(table_psf.energy, name="energy")
-        rad_axis = MapAxis.from_edges(table_psf.rad, name="theta")
+        psf_map = Map.from_geom(geom, unit="sr-1")
 
-        geom_image = WcsGeom.create(binsz=180)
-        geom = geom_image.to_cube([rad_axis, energy_axis])
-        return cls(psf_map=, exposure_map=)
+        psf_map.data[..., 0, 0] = table_psf.psf_value.to_value("sr-1")
+        psf_map.data[..., 0, 1] = table_psf.psf_value.to_value("sr-1")
+
+        exposure_geom = geom_image.to_cube([energy_axis])
+        exposure_map = Map.from_geom(exposure_geom, unit="cm-2 s-1")
+        exposure_map.data[..., 0, 0] = table_psf.exposure.to_value("cm2 s1")
+        exposure_map.data[..., 0, 1] = table_psf.exposure.to_value("cm2 s1")
+        return cls(psf_map=psf_map, exposure_map=exposure_map)
 
     def sample_coord(self, map_coord, random_state=0):
         """Apply PSF corrections on the coordinates of a set of simulated events.
