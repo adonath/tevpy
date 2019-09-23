@@ -185,6 +185,7 @@ class CountsSpectrum:
         ax.set_xlabel(f"Energy [{energy_unit}]")
         ax.set_ylabel("Counts")
         ax.set_xscale("log")
+        ax.set_yscale("log")
         return ax
 
     def plot_hist(self, ax=None, energy_unit="TeV", show_energy=None, **kwargs):
@@ -216,6 +217,7 @@ class CountsSpectrum:
         ax.set_xlabel(f"Energy [{energy_unit}]")
         ax.set_ylabel("Counts")
         ax.set_xscale("log")
+        ax.set_yscale("log")
         return ax
 
     def peek(self, figsize=(5, 10)):
