@@ -701,6 +701,7 @@ class MapDataset(Dataset):
         if "PSF_KERNEL" in hdulist:
             psf_map = Map.from_hdulist(hdulist, hdu="psf_kernel")
             kwargs["psf"] = PSFKernel(psf_map)
+
         if "PSF" in hdulist:
             psf_map = Map.from_hdulist(hdulist, hdu="psf")
             exposure_map = Map.from_hdulist(hdulist, hdu="psf_exposure")
@@ -1384,16 +1385,14 @@ class MapEvaluator:
         # cache current position of the model component
 
         # TODO: lookup correct Edisp for this component
-        e_reco = geom.get_axis_by_name("energy").edges
-        self.edisp = edisp.get_energy_dispersion(self.model.position, e_reco=e_reco)
-
-        # TODO: lookup correct PSF for this component
-        self.psf = psf.get_psf_kernel(self.model.position, geom=self.geom, max_radius="0.5 deg")
+        #e_reco = geom.get_axis_by_name("energy").edges
+        self.edisp = edisp #.get_energy_dispersion(self.model.position, e_reco=e_reco)
+        self.psf = psf.get_psf_kernel(self.model.position, geom=exposure.geom)
 
         if self.evaluation_mode == "local" and self.model.evaluation_radius is not None:
             self._init_position = self.model.position
             if psf is not None:
-                psf_width = np.max(psf.psf_kernel_map.geom.width)
+                psf_width = np.max(self.psf.psf_kernel_map.geom.width)
             else:
                 psf_width = 0 * u.deg
 

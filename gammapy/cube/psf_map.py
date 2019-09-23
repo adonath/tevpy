@@ -242,7 +242,7 @@ class PSFMap:
         psf_values = u.Quantity(data.squeeze(), unit=self.psf_map.unit, copy=False)
         return EnergyDependentTablePSF(energy=energy, rad=rad, psf_value=psf_values)
 
-    def get_psf_kernel(self, position, geom, max_radius=None, factor=4):
+    def get_psf_kernel(self, position, geom, max_radius="0.6 deg", factor=4):
         """Returns a PSF kernel at the given position.
 
         The PSF is returned in the form a WcsNDMap defined by the input Geom.
@@ -254,7 +254,7 @@ class PSFMap:
         geom : `~gammapy.maps.Geom`
             the target geometry to use
         max_radius : `~astropy.coordinates.Angle`
-            maximum angular size of the kernel map
+            Maximum angular size of the PSF kernel.
         factor : int
             oversampling factor to compute the PSF
 
@@ -263,6 +263,7 @@ class PSFMap:
         kernel : `~gammapy.cube.PSFKernel`
             the resulting kernel
         """
+        max_radius = Angle(max_radius)
         table_psf = self.get_energy_dependent_table_psf(position)
         return PSFKernel.from_table_psf(table_psf, geom, max_radius, factor)
 
