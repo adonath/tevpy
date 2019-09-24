@@ -254,19 +254,19 @@ class EDispMap:
 
         data = []
 
-        for i, e_true in enumerate(energy_axis.center):
+        for idx, e_true in enumerate(energy_axis.center):
             # We now perform integration over migra
             # The code is adapted from `~gammapy.EnergyDispersion2D.get_response`
 
             # migration value of e_reco bounds
-            migra_e_reco = e_reco / e_true
+            migra = e_reco / e_true
 
             # Compute normalized cumulative sum to prepare integration
             tmp = np.nan_to_num(
-                np.cumsum(edisp_values[:, i]) / np.sum(edisp_values[:, i])
+                np.cumsum(edisp_values[:, idx]) / np.sum(edisp_values[:, idx])
             )
 
-            pos_mig = migra_axis_upsampled.coord_to_idx(migra_e_reco)
+            pos_mig = migra_axis_upsampled.coord_to_idx(migra)
 
             # We compute the difference between 2 successive bounds in e_reco
             # to get integral over reco energy bin
@@ -301,18 +301,20 @@ class EDispMap:
             Energy dispersion map.
 
         """
-        energy_axis = edisp.e_true
-        migra = edisp
-        migra_axis = None
+        e_true = edisp.e_true
+        e_reco = edisp.e_reco
+
+        A = (e_reco.edges - e_true.center.reshape((-1, 1))) / e_true.center.reshape((-1, 1))
+        migra = np.diff(A, axis=1) + 1
 
         geom_image = WcsGeom.create(binsz=180)
-        geom = geom_image.to_cube([migra_axis, energy_axis])
+        geom = geom_image.to_cube([migra_axis, e_true])
         edisp_map = Map.from_geom(geom, unit="sr-1")
 
-        edisp_map.data[..., 0, 0] = edisp.pdf_matrix.to_value("sr-1")
-        edisp_map.data[..., 0, 1] = edisp.pdf_matrix.to_value("sr-1")
+        edisp_map.data[..., 0, 0] = migra
+        edisp_map.data[..., 0, 1] = migra
 
-        exposure_geom = geom_image.to_cube([energy_axis])
+        exposure_geom = geom_image.to_cube([e_true])
         exposure_map = Map.from_geom(exposure_geom, unit="cm-2 s-1")
         exposure_map.data[..., 0, 0] = exposure.to_value("cm2 s1")
         exposure_map.data[..., 0, 1] = exposure.to_value("cm2 s1")
