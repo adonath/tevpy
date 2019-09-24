@@ -4,7 +4,7 @@ import numpy as np
 import astropy.io.fits as fits
 import astropy.units as u
 from gammapy.irf import EnergyDispersion
-from gammapy.maps import Map, MapCoord
+from gammapy.maps import Map, MapCoord, WcsGeom
 from gammapy.utils.random import InverseCDFSampler, get_random_state
 
 __all__ = ["make_edisp_map", "EDispMap"]
@@ -235,29 +235,26 @@ class EDispMap:
                 "EnergyDispersion can be extracted at one single position only."
             )
 
-        # axes ordering fixed. Could be changed.
-        pix_ener = np.arange(self.edisp_map.geom.axes[1].nbin)
+        energy_axis = self.edisp_map.geom.get_axis_by_name("energy")
+        migra_axis = self.edisp_map.geom.get_axis_by_name("migra")
 
-        # Define a vector of migration with mig_step step
-        mrec_min = self.edisp_map.geom.axes[0].edges[0]
-        mrec_max = self.edisp_map.geom.axes[0].edges[-1]
-        mig_array = np.arange(mrec_min, mrec_max, migra_step)
-        pix_migra = (mig_array - mrec_min) / mrec_max * self.edisp_map.geom.axes[0].nbin
+        # upsample the migra axis for better precision
+        factor = int(migra_axis.bin_width.mean() / migra_step)
+        migra_axis_upsampled = migra_axis.upsample(factor=factor)
 
-        # Convert position to pixels
-        pix_lon, pix_lat = self.edisp_map.geom.to_image().coord_to_pix(position)
+        coords = {
+            "skycoord": position,
+            "migra": migra_axis_upsampled.edges.reshape((-1, 1, 1, 1)),
+            "energy": energy_axis.center.reshape((1, -1, 1, 1)),
+        }
 
-        # Build the pixels tuple
-        pix = np.meshgrid(pix_lon, pix_lat, pix_migra, pix_ener)
         # Interpolate in the EDisp map. Squeeze to remove dimensions of length 1
-        edisp_values = np.squeeze(
-            self.edisp_map.interp_by_pix(pix)
-            * u.Unit(self.edisp_map.unit)  # * migra_step
-        )
-        e_trues = self.edisp_map.geom.axes[1].center
+        values = self.edisp_map.interp_by_coord(coords) * self.edisp_map.unit
+        edisp_values = values.squeeze()
+
         data = []
 
-        for i, e_true in enumerate(e_trues):
+        for i, e_true in enumerate(energy_axis.center):
             # We now perform integration over migra
             # The code is adapted from `~gammapy.EnergyDispersion2D.get_response`
 
@@ -269,10 +266,7 @@ class EDispMap:
                 np.cumsum(edisp_values[:, i]) / np.sum(edisp_values[:, i])
             )
 
-            # Determine positions (bin indices) of e_reco bounds in migration array
-            pos_mig = np.digitize(migra_e_reco, mig_array) - 1
-            # We ensure that no negative values are found
-            pos_mig = np.maximum(pos_mig, 0)
+            pos_mig = migra_axis_upsampled.coord_to_idx(migra_e_reco)
 
             # We compute the difference between 2 successive bounds in e_reco
             # to get integral over reco energy bin
@@ -281,28 +275,25 @@ class EDispMap:
             data.append(integral)
 
         data = np.asarray(data)
-        # EnergyDispersion uses edges of true energy bins
-        e_true_edges = self.edisp_map.geom.axes[1].edges
-
-        e_lo, e_hi = e_true_edges[:-1], e_true_edges[1:]
-        ereco_lo, ereco_hi = (e_reco[:-1], e_reco[1:])
 
         return EnergyDispersion(
-            e_true_lo=e_lo,
-            e_true_hi=e_hi,
-            e_reco_lo=ereco_lo,
-            e_reco_hi=ereco_hi,
+            e_true_lo=energy_axis.edges[:-1],
+            e_true_hi=energy_axis.edges[1:],
+            e_reco_lo=e_reco[:-1],
+            e_reco_hi=e_reco[1:],
             data=data,
         )
 
     @classmethod
-    def from_energy_dispersion(cls, edisp, exposure_map):
+    def from_energy_dispersion(cls, edisp, exposure):
         """Create `EdispMap` from `EnergyDispersion` object.
 
         Parameters
         ----------
         edisp : `EnergyDispersion`
-
+            Energy dispersion matrix.
+        exposure : `~astropy.units.Quantity`
+            Exposure in true energy.
 
         Returns
         -------
@@ -310,14 +301,22 @@ class EDispMap:
             Energy dispersion map.
 
         """
-        factor = 1
-        exposure_map = exposure_map.downsample(factor=factor, preserve_counts=False)
-        e_true = exposure_map.geom.get_axis_by_name("energy").edges
-        migra = edisp.get_bias(e_true=e_true) + 1
+        energy_axis = edisp.e_true
+        migra = edisp
+        migra_axis = None
 
+        geom_image = WcsGeom.create(binsz=180)
+        geom = geom_image.to_cube([migra_axis, energy_axis])
+        edisp_map = Map.from_geom(geom, unit="sr-1")
+
+        edisp_map.data[..., 0, 0] = edisp.pdf_matrix.to_value("sr-1")
+        edisp_map.data[..., 0, 1] = edisp.pdf_matrix.to_value("sr-1")
+
+        exposure_geom = geom_image.to_cube([energy_axis])
+        exposure_map = Map.from_geom(exposure_geom, unit="cm-2 s-1")
+        exposure_map.data[..., 0, 0] = exposure.to_value("cm2 s1")
+        exposure_map.data[..., 0, 1] = exposure.to_value("cm2 s1")
         return cls(edisp_map, exposure_map)
-
-
 
     def stack(self, other):
         """Stack EDispMap with another one.
