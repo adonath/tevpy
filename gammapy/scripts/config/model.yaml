@@ -6,20 +6,20 @@ components:
           type: PointSpatialModel
           parameters:
               lon_0:
-                value: 83.633 deg
-                max: 85
-                min: 80
+                  value: 83.633 deg
+                  max: 85
+                  min: 80
               lat_0:
-                value: 22.14 deg
-                max: 24
-                min: 20
+                  value: 22.14 deg
+                  max: 24
+                  min: 20
       spectral:
           type: PowerLawSpectralModel
           parameters:
               index:
-                value: 2.6
+                  value: 2.6
               amplitude:
-                value: 5.0e-11 cm-2 s-1 TeV-1
+                  value: 5.0e-11 cm-2 s-1 TeV-1
               reference:
-                value: 1 TeV
-                frozen: true
+                  value: 1 TeV
+                  frozen: true
