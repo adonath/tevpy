@@ -62,9 +62,9 @@ def test_parameter_repr():
 
 
 def test_parameter_to_dict():
-    par = Parameter("spam", 42, "deg")
+    par = Parameter(name="spam", factor=42, unit="deg")
     d = par.to_dict()
-    assert isinstance(d["unit"], str)
+    assert isinstance(d["value"], str)
 
 
 @pytest.mark.parametrize(

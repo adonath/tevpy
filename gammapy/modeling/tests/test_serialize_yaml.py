@@ -20,7 +20,7 @@ def test_dict_to_skymodels(tmpdir):
 
     models = dict_to_models(models_data)
 
-    assert len(models) == 3
+    assert len(models) == 4
 
     model0 = models[0]
     assert model0.spectral_model.tag == "ExpCutoffPowerLawSpectralModel"
@@ -31,19 +31,17 @@ def test_dict_to_skymodels(tmpdir):
     assert pars0["index"].unit == ""
     assert np.isnan(pars0["index"].max)
     assert np.isnan(pars0["index"].min)
-    assert pars0["index"].frozen is False
+    assert not pars0["index"].frozen
 
     assert pars0["lon_0"].value == -50.0
     assert pars0["lon_0"].unit == "deg"
-    assert pars0["lon_0"].max == 180.0
-    assert pars0["lon_0"].min == -180.0
-    assert pars0["lon_0"].frozen is True
+    assert pars0["lon_0"].frozen
 
     assert pars0["lat_0"].value == -0.05
     assert pars0["lat_0"].unit == "deg"
     assert pars0["lat_0"].max == 90.0
     assert pars0["lat_0"].min == -90.0
-    assert pars0["lat_0"].frozen is True
+    assert pars0["lat_0"].frozen
 
     assert pars0["lambda_"].value == 0.06
     assert pars0["lambda_"].unit == "TeV-1"
