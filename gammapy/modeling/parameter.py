@@ -10,15 +10,6 @@ from gammapy.utils.array import check_type
 __all__ = ["Parameter", "Parameters"]
 
 
-def get_default_args(func):
-    signature = inspect.signature(func)
-    return {
-        k: v.default
-        for k, v in signature.parameters.items()
-        if v.default is not inspect.Parameter.empty
-    }
-
-
 class Parameter:
     """A model parameter.
 
@@ -182,19 +173,23 @@ class Parameter:
 
     def to_dict(self):
         """Convert to dict."""
-        data = {
-            "name": self.name,
-            "value": self.value,
-            "unit": self.unit.to_string("fits"),
-        }
+        data = {}
 
-        defaults = get_default_args(self.__init__)
+        value = self.quantity
 
-        for attr in ["frozen", "min", "max"]:
-            value = getattr(self, attr)
-            default = defaults[attr]
-            if value != default and value is not default:
-                data[attr] = value
+        if value.unit == "":
+            data["value"] = value.value
+        else:
+            data["value"] = value.to_string()
+
+        if self.frozen:
+            data["frozen"] = self.frozen
+
+        if not np.isnan(self.min):
+            data["min"] = self.min
+
+        if not np.isnan(self.max):
+            data["max"] = self.max
 
         return data
 
@@ -338,9 +333,10 @@ class Parameters:
         return self.parameters[idx]
 
     def to_dict(self):
-        data = dict(parameters=[], covariance=None)
+        data = dict(parameters={}, covariance=None)
         for par in self.parameters:
-            data["parameters"].append(par.to_dict())
+            data["parameters"][par.name] = par.to_dict()
+
         if self.covariance is not None:
             data["covariance"] = self.covariance.tolist()
 
@@ -369,10 +365,10 @@ class Parameters:
     @classmethod
     def from_dict(cls, data):
         parameters = []
-        for par in data["parameters"]:
+        for name, par in data["parameters"].items():
             parameter = Parameter(
-                name=par["name"],
-                factor=float(par["value"]),
+                name=name,
+                factor=par["value"],
                 unit=par.get("unit", ""),
                 min=float(par.get("min", np.nan)),
                 max=float(par.get("max", np.nan)),

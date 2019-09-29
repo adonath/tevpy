@@ -46,8 +46,8 @@ class Model:
     @classmethod
     def from_dict(cls, data):
         params = {
-            x["name"].split("@")[0]: x["value"] * u.Unit(x["unit"])
-            for x in data["parameters"]
+            key.split("@")[0]: value["value"]
+            for key, value in data["parameters"].items()
         }
 
         # TODO: this is a special case for spatial models, maybe better move to `SpatialModel` base class
