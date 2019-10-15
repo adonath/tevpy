@@ -4,11 +4,11 @@ from astropy import units as u
 from astropy.coordinates import Angle
 from astropy.utils import lazyproperty
 from regions import CircleSkyRegion
-from gammapy.irf import apply_containment_fraction, EnergyDependentMultiGaussPSF
+from gammapy.irf import EnergyDependentMultiGaussPSF, apply_containment_fraction
 from gammapy.maps import WcsGeom
 from gammapy.maps.geom import frame_to_coordsys
-from .dataset import SpectrumDataset
 from .core import CountsSpectrum
+from .dataset import SpectrumDataset
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +35,16 @@ class SpectrumDatasetMaker:
         Reference map width, should encompass the whole region.
 
     """
-    def __init__(self, region, e_reco, e_true=None, containment_correction=True, binsz="0.01 deg", width="0.5 deg"):
+
+    def __init__(
+        self,
+        region,
+        e_reco,
+        e_true=None,
+        containment_correction=True,
+        binsz="0.01 deg",
+        width="0.5 deg",
+    ):
         self.region = region
         self.e_reco = e_reco
         self.e_true = e_true or e_reco
@@ -53,7 +62,7 @@ class SpectrumDatasetMaker:
             width=self.width,
             binsz=self.binsz,
             proj="TAN",
-            coordsys=coordsys
+            coordsys=coordsys,
         )
 
     @lazyproperty
@@ -83,7 +92,9 @@ class SpectrumDatasetMaker:
         energy_lo = self.e_reco[:-1]
 
         counts = CountsSpectrum(energy_hi=energy_hi, energy_lo=energy_lo)
-        events_region = observation.events.select_region(self.region, wcs=self.geom_ref.wcs)
+        events_region = observation.events.select_region(
+            self.region, wcs=self.geom_ref.wcs
+        )
         counts.fill(events_region)
         return counts
 
@@ -107,13 +118,15 @@ class SpectrumDatasetMaker:
         bkg = observation.bkg
 
         data = bkg.evaluate_integrate(
-                    fov_lon=0 * u.deg, fov_lat=offset, energy_reco=self.e_reco
-                )
+            fov_lon=0 * u.deg, fov_lat=offset, energy_reco=self.e_reco
+        )
 
         data *= self.region_solid_angle
         data *= observation.observation_time_duration
 
-        counts = CountsSpectrum(energy_hi=energy_hi, energy_lo=energy_lo, data=data.to_value(""), unit="")
+        counts = CountsSpectrum(
+            energy_hi=energy_hi, energy_lo=energy_lo, data=data.to_value(""), unit=""
+        )
         return counts
 
     def make_aeff(self, observation):
@@ -130,13 +143,13 @@ class SpectrumDatasetMaker:
             Effective area table.
         """
         offset = observation.pointing_radec.separation(self.region.center)
-        aeff = observation.aeff.to_effective_area_table(
-            offset, energy=self.e_true
-        )
+        aeff = observation.aeff.to_effective_area_table(offset, energy=self.e_true)
 
         if self.containment_correction:
             if not isinstance(self.region, CircleSkyRegion):
-                raise TypeError("Containment correction only support for circular regions.")
+                raise TypeError(
+                    "Containment correction only support for circular regions."
+                )
             psf = observation.psf
 
             if isinstance(psf, EnergyDependentMultiGaussPSF):
@@ -216,7 +229,10 @@ class SafeMaskMaker:
     methods : {"aeff-default", "aeff-max", "edisp-bias"}
         Method to use for the safe energy range.
     """
-    def __init__(self, methods=["aeff-default"], aeff_percent=(10, None), bias_percent=(10, None)):
+
+    def __init__(
+        self, methods=["aeff-default"], aeff_percent=(10, None), bias_percent=(10, None)
+    ):
         self.methods = methods
         self.aeff_percent = aeff_percent
         self.bias_percent = bias_percent

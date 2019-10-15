@@ -6,15 +6,15 @@ import astropy.units as u
 from astropy.coordinates import Angle, SkyCoord
 from regions import CircleSkyRegion
 from gammapy.data import DataStore
-from gammapy.spectrum import (
-    SpectrumDatasetMaker
-)
+from gammapy.spectrum import SpectrumDatasetMaker
 
 
 @pytest.fixture
 def observations():
     """Example observation list for testing."""
-    datastore = DataStore.from_file("$GAMMAPY_DATA/hess-dl3-dr1/hess-dl3-dr3-with-background.fits.gz")
+    datastore = DataStore.from_file(
+        "$GAMMAPY_DATA/hess-dl3-dr1/hess-dl3-dr3-with-background.fits.gz"
+    )
     obs_ids = [23523, 23526]
     return datastore.get_observations(obs_ids)
 
@@ -44,4 +44,3 @@ def test_spectrum_dataset_maker(spectrum_dataset_maker, observations):
 
     assert_allclose(datasets[0].background.data.sum(), 1.754928, rtol=1e-5)
     assert_allclose(datasets[1].background.data.sum(), 1.759318, rtol=1e-5)
-
