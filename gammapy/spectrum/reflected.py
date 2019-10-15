@@ -5,6 +5,7 @@ from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord
 from regions import PixCoord
 from gammapy.maps import Map, WcsGeom, WcsNDMap
+from gammapy.maps.geom import frame_to_coordsys
 from .background_estimate import BackgroundEstimate
 
 __all__ = ["ReflectedRegionsFinder", "ReflectedRegionsBackgroundEstimator"]
@@ -140,15 +141,7 @@ class ReflectedRegionsFinder:
         reference_map : `~gammapy.maps.WcsNDMap`
             Map containing the region
         """
-
-        try:
-            if "ra" in region.center.representation_component_names:
-                coordsys = "CEL"
-            else:
-                coordsys = "GAL"
-        except:
-            raise TypeError("Algorithm not yet adapted to this Region shape")
-
+        coordsys = frame_to_coordsys(region.center.frame.name)
         # width is the full width of an image (not the radius)
         width = 4 * region.center.separation(center) + Angle(min_width)
 
@@ -257,13 +250,10 @@ class ReflectedRegionsFinder:
 
 class ReflectedRegionsBackgroundEstimator:
     """Reflected Regions background estimator.
-
     This class is responsible for creating a
     `~gammapy.spectrum.BackgroundEstimate` by placing reflected regions given
     a target region and an observation.
-
     For a usage example see :gp-notebook:`spectrum_analysis`
-
     Parameters
     ----------
     on_region : `~regions.SkyRegion`
@@ -341,7 +331,6 @@ class ReflectedRegionsBackgroundEstimator:
 
     def plot(self, fig=None, ax=None, cmap=None, idx=None, add_legend=False):
         """Standard debug plot.
-
         Parameters
         ----------
         fig : `~matplotlib.figure.Figure`

@@ -176,6 +176,15 @@ def coordsys_to_frame(coordsys):
         raise ValueError(f"Unrecognized coordinate system: {coordsys!r}")
 
 
+def frame_to_coordsys(frame):
+    if frame in ["fk5", "fk4", "icrs"]:
+        return "CEL"
+    elif frame == "galactic":
+        return "GAL"
+    else:
+        raise ValueError(f"Unrecognized coordinate system: {frame!r}")
+
+
 # TODO: remove (or improve)
 def skycoord_to_lonlat(skycoord, coordsys=None):
     """Convert SkyCoord to lon, lat, frame.
