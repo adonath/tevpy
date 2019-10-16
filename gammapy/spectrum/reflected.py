@@ -10,7 +10,7 @@ from .background_estimate import BackgroundEstimate
 from .dataset import SpectrumDatasetOnOff
 
 
-__all__ = ["ReflectedRegionsFinder", "ReflectedRegionsBackgroundEstimator"]
+__all__ = ["ReflectedRegionsFinder", "ReflectedRegionsBackgroundEstimator", "ReflectedRegionsBackgroundMaker"]
 
 log = logging.getLogger(__name__)
 
@@ -423,6 +423,8 @@ class ReflectedRegionsBackgroundMaker:
 
     Parameters
     ----------
+    region: `~regions.SkyRegion`
+        On region to compute off regions for.
     angle_increment : `~astropy.coordinates.Angle`, optional
         Rotation angle applied when a region falls in an excluded region.
     min_distance : `~astropy.coordinates.Angle`, optional
@@ -436,7 +438,6 @@ class ReflectedRegionsBackgroundMaker:
     binsz : `~astropy.coordinates.Angle`
         Bin size of the reference map used for region finding. Default : 0.01 deg
     """
-
     def __init__(
         self,
         region,

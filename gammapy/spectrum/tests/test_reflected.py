@@ -1,7 +1,9 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import pytest
+import numpy as np
 import astropy.units as u
 from astropy.coordinates import Angle, SkyCoord
+from numpy.testing import assert_allclose
 from regions import (
     CircleSkyRegion,
     EllipseAnnulusSkyRegion,
@@ -10,13 +12,14 @@ from regions import (
 )
 from gammapy.data import DataStore
 from gammapy.maps import WcsGeom, WcsNDMap
-from gammapy.spectrum import ReflectedRegionsBackgroundEstimator, ReflectedRegionsFinder
+from gammapy.spectrum import ReflectedRegionsBackgroundEstimator, ReflectedRegionsFinder, ReflectedRegionsBackgroundMaker
 from gammapy.utils.testing import (
     assert_quantity_allclose,
     mpl_plot_check,
     requires_data,
     requires_dependency,
 )
+from gammapy.spectrum.make import SpectrumDatasetMaker
 
 
 @pytest.fixture(scope="session")
@@ -44,6 +47,18 @@ def observations():
     datastore = DataStore.from_dir("$GAMMAPY_DATA/hess-dl3-dr1")
     obs_ids = [23523, 23526]
     return datastore.get_observations(obs_ids)
+
+
+@pytest.fixture()
+def spectrum_dataset_maker(on_region):
+    e_reco = np.logspace(0, 2, 5) * u.TeV
+    e_true = np.logspace(-0.5, 2, 11) * u.TeV
+    return SpectrumDatasetMaker(region=on_region, e_reco=e_reco, e_true=e_true)
+
+
+@pytest.fixture()
+def reflected_bkg_maker(on_region, exclusion_mask):
+    return ReflectedRegionsBackgroundMaker(region=on_region, exclusion_mask=exclusion_mask)
 
 
 @pytest.fixture(scope="session")
@@ -158,6 +173,23 @@ def bad_on_region(exclusion_mask, on_region):
     # try plotting
     with mpl_plot_check():
         finder.plot()
+
+
+def test_reflected_bkg_maker(spectrum_dataset_maker, reflected_bkg_maker, observations):
+
+    datasets = []
+
+    for obs in observations:
+        dataset = spectrum_dataset_maker.run(obs, selection=["counts"])
+        dataset_on_off = reflected_bkg_maker.run(dataset, obs)
+        datasets.append(dataset_on_off)
+
+    assert_allclose(datasets[0].counts_off.data.sum(), 76)
+    assert_allclose(datasets[1].counts_off.data.sum(), 60)
+
+    assert_allclose(len(datasets[0].counts_off.regions), 11)
+    assert_allclose(len(datasets[1].counts_off.regions), 11)
+
 
 
 @requires_data()
