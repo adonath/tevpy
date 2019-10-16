@@ -7,6 +7,8 @@ from regions import PixCoord
 from gammapy.maps import Map, WcsGeom, WcsNDMap
 from gammapy.maps.geom import frame_to_coordsys
 from .background_estimate import BackgroundEstimate
+from .dataset import SpectrumDatasetOnOff
+
 
 __all__ = ["ReflectedRegionsFinder", "ReflectedRegionsBackgroundEstimator"]
 
@@ -414,3 +416,121 @@ class ReflectedRegionsBackgroundEstimator:
             ax.legend(handles=handles)
 
         return fig, ax, cbar
+
+
+class ReflectedRegionsBackgroundMaker:
+    """Reflected regions background maker.
+
+    Parameters
+    ----------
+    angle_increment : `~astropy.coordinates.Angle`, optional
+        Rotation angle applied when a region falls in an excluded region.
+    min_distance : `~astropy.coordinates.Angle`, optional
+        Minimal distance between two consecutive reflected regions
+    min_distance_input : `~astropy.coordinates.Angle`, optional
+        Minimal distance from input region
+    max_region_number : int, optional
+        Maximum number of regions to use
+    exclusion_mask : `~gammapy.maps.WcsNDMap`, optional
+        Exclusion mask
+    binsz : `~astropy.coordinates.Angle`
+        Bin size of the reference map used for region finding. Default : 0.01 deg
+    """
+
+    def __init__(
+        self,
+        region,
+        angle_increment="0.1 rad",
+        min_distance="0 rad",
+        min_distance_input="0.1 rad",
+        max_region_number=10000,
+        exclusion_mask=None,
+        binsz="0.01 deg",
+    ):
+        self.region = region
+        self.binsz = binsz
+        self.exclusion_mask = exclusion_mask
+        self.angle_increment = angle_increment
+        self.min_distance = min_distance
+        self.min_distance_input = min_distance_input
+        self.max_region_number = max_region_number
+
+    def _get_finder(self, observation):
+        finder = ReflectedRegionsFinder(
+            binsz=self.binsz,
+            exclusion_mask=self.exclusion_mask,
+            center=observation.pointing_radec,
+            region=self.region,
+            min_distance=self.min_distance,
+            min_distance_input=self.min_distance_input,
+            max_region_number=self.max_region_number,
+            angle_increment=self.angle_increment,
+        )
+        return finder
+
+    def make_counts_off(self, dataset, observation):
+        """
+
+        Parameters
+        ----------
+        dataset : `SpectrumDataset`
+            Spectrum dataset.
+        observation : `DatastoreObservation`
+            Data store observation.
+
+
+        Returns
+        -------
+        counts_off : `CountsSpectrum`
+            Off counts.
+        """
+        finder = self._get_finder(observation)
+
+        finder.run()
+        regions = finder.reflected_regions
+
+        region_union = regions[0]
+
+        for region in regions[1:]:
+            region_union = region_union.union(region)
+
+        wcs = finder.reference_map.geom.wcs
+        events_off = observation.events.select_region(region_union, wcs)
+
+        counts_off = dataset.counts.copy()
+        counts_off.fill(events_off)
+        counts_off.regions = regions
+        return counts_off
+
+    def run(self, dataset, observation):
+        """
+
+        Parameters
+        ----------
+        dataset : `SpectrumDataset`
+            Spectrum dataset.
+        observation : `DatastoreObservation`
+            Data store observation.
+
+
+        Returns
+        -------
+        dataset_on_off : `SpectrumDatasetOnOff`
+            On off dataset.
+
+        """
+        kwargs = {}
+
+        kwargs["counts"] = dataset.counts
+        kwargs["gti"] = dataset.gti
+        kwargs["name"] = dataset.name
+        kwargs["mask_safe"] = dataset.mask_safe
+        kwargs["aeff"] = dataset.aeff
+        kwargs["livetime"] = dataset.livetime
+        kwargs["edisp"] = dataset.edisp
+
+        counts_off = self.make_counts_off(dataset, observation)
+        kwargs["acceptance"] = 1
+        kwargs["acceptance_off"] = len(counts_off.regions)
+        kwargs["counts_off"] = counts_off
+        return SpectrumDatasetOnOff(**kwargs)
