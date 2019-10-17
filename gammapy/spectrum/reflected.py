@@ -451,9 +451,9 @@ class ReflectedRegionsBackgroundMaker:
         self.region = region
         self.binsz = binsz
         self.exclusion_mask = exclusion_mask
-        self.angle_increment = angle_increment
-        self.min_distance = min_distance
-        self.min_distance_input = min_distance_input
+        self.angle_increment = Angle(angle_increment)
+        self.min_distance = Angle(min_distance)
+        self.min_distance_input = Angle(min_distance_input)
         self.max_region_number = max_region_number
 
     def _get_finder(self, observation):
@@ -470,7 +470,7 @@ class ReflectedRegionsBackgroundMaker:
         return finder
 
     def make_counts_off(self, dataset, observation):
-        """
+        """Make off counts.
 
         Parameters
         ----------
@@ -504,7 +504,7 @@ class ReflectedRegionsBackgroundMaker:
         return counts_off
 
     def run(self, dataset, observation):
-        """
+        """Run reflected regions background maker
 
         Parameters
         ----------
@@ -512,7 +512,6 @@ class ReflectedRegionsBackgroundMaker:
             Spectrum dataset.
         observation : `DatastoreObservation`
             Data store observation.
-
 
         Returns
         -------
@@ -526,6 +525,7 @@ class ReflectedRegionsBackgroundMaker:
         kwargs["gti"] = dataset.gti
         kwargs["name"] = dataset.name
         kwargs["mask_safe"] = dataset.mask_safe
+        kwargs["mask_fit"] = dataset.mask_fit
         kwargs["aeff"] = dataset.aeff
         kwargs["livetime"] = dataset.livetime
         kwargs["edisp"] = dataset.edisp

@@ -195,3 +195,114 @@ class SpectrumDatasetMaker:
             kwargs["edisp"] = self.make_edisp(observation)
 
         return SpectrumDataset(**kwargs)
+
+
+class SafeMaskMaker:
+    """Make safe data range mask for a given observation.
+
+    Parameters
+    ----------
+    methods : {"aeff-default", "aeff-max", "edisp-bias"}
+        Method to use for the safe energy range. Can be a
+        list with a combination of those. Resulting masks
+        are combined with logical `and`.
+    aeff_percent : float
+        Percentage of the maximal effective area to be used
+        as lower energy threshold.
+    bias_percent : float
+        Percentage of the energy bias to be used as lower
+        energy threshold.
+    """
+
+    def __init__(
+        self, methods=["aeff-default"], aeff_percent=10, bias_percent=10
+    ):
+        self.methods = methods
+        self.aeff_percent = aeff_percent
+        self.bias_percent = bias_percent
+
+    @staticmethod
+    def make_mask_energy_aeff_default(dataset, observation):
+        """Make safe energy mask from aeff default.
+        Parameters
+        ----------
+        dataset : `Dataset`
+            Dataset to compute mask for.
+        observation: `DataStoreObservation`
+            Observation to compute mask for.
+        Returns
+        -------
+        mask_safe : `~numpy.ndarray`
+            Safe data range mask.
+        """
+        try:
+            e_max = observation.aeff.high_threshold
+            e_min = observation.aeff.low_threshold
+            mask_safe = dataset.counts.energy_mask(emin=e_min, emax=e_max)
+        except KeyError:
+            log.warning(f"No thresholds defined for obs {observation}")
+        return mask_safe
+
+    def make_mask_energy_aeff_max(self, dataset):
+        """Make safe energy mask from aeff max.
+
+        Parameters
+        ----------
+        dataset : `SpectrumDataset` or `SpectrumDatasetOnOff`
+            Dataset to compute mask for.
+
+        Returns
+        -------
+        mask_safe : `~numpy.ndarray`
+            Safe data range mask.
+        """
+        aeff_thres = self.aeff_percent / 100 * dataset.aeff.max_area
+        e_min = dataset.aeff.find_energy(aeff_thres)
+        mask_safe = dataset.counts.energy_mask(emin=e_min)
+        return mask_safe
+
+    def make_mask_energy_edisp_bias(self, dataset):
+        """Make safe energy mask from aeff max.
+
+        Parameters
+        ----------
+        dataset : `SpectrumDataset` or `SpectrumDatasetOnOff`
+            Dataset to compute mask for.
+
+        Returns
+        -------
+        mask_safe : `~numpy.ndarray`
+            Safe data range mask.
+        """
+        e_min = dataset.edisp.get_bias_energy(self.bias_percent / 100)
+        mask_safe = dataset.counts.energy_mask(emin=e_min)
+        return mask_safe
+
+    def run(self, dataset, observation):
+        """Make safe data range mask.
+
+        Parameters
+        ----------
+        dataset : `Dataset`
+            Dataset to compute mask for.
+        observation: `DataStoreObservation`
+            Observation to compute mask for.
+
+        Returns
+        -------
+        dataset : `Dataset`
+            Dataset with defined safe range mask.
+        """
+        mask_safe = np.ones(dataset.data_shape, dtype=bool)
+
+        if "aeff-default" in self.methods:
+            mask_safe &= self.make_mask_energy_aeff_default(dataset, observation)
+
+        if "aeff-max" in self.methods:
+            mask_safe &= self.make_mask_energy_aeff_max(dataset, observation)
+
+        if "edisp-bias" in self.methods:
+            mask_safe &= self.make_mask_energy_edisp_bias(dataset, observation)
+
+        dataset.mask_safe = mask_safe
+        return dataset
