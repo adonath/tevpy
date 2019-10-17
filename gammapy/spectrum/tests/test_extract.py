@@ -126,6 +126,7 @@ class TestSpectrumExtraction:
         safe_mask_maker = SafeMaskMaker(methods=["aeff-max"], aeff_percent=10)
 
         obs = observations[0]
+        dataset_maker.containment_correction = True
         dataset = dataset_maker.run(obs, selection=["counts", "aeff", "edisp"])
         dataset = safe_mask_maker.run(dataset, obs)
 
