@@ -4,6 +4,7 @@ import copy
 import logging
 from collections import defaultdict
 from pathlib import Path
+import numpy as np
 from astropy import units as u
 from astropy.coordinates import Angle, SkyCoord
 from regions import CircleSkyRegion
@@ -19,8 +20,9 @@ from gammapy.modeling.serialize import dict_to_models
 from gammapy.spectrum import (
     FluxPointsDataset,
     FluxPointsEstimator,
-    ReflectedRegionsBackgroundEstimator,
-    SpectrumExtraction,
+    SpectrumDatasetMaker,
+    SafeMaskMaker,
+    ReflectedRegionsBackgroundMaker
 )
 from gammapy.utils.scripts import make_path, read_yaml
 
@@ -299,7 +301,8 @@ class Analysis:
         on_lat = Angle(region["center"][1])
         on_center = SkyCoord(on_lon, on_lat, frame=region["frame"])
         on_region = CircleSkyRegion(on_center, Angle(region["radius"]))
-        background_params = {"on_region": on_region}
+
+        background_params = {"region": on_region}
         background = self.settings["datasets"]["background"]
         if "exclusion_mask" in background:
             map_hdu = {}
@@ -309,13 +312,9 @@ class Analysis:
             exclusion_region = Map.read(filename, **map_hdu)
             background_params["exclusion_mask"] = exclusion_region
         if background["background_estimator"] == "reflected":
-            self.background_estimator = ReflectedRegionsBackgroundEstimator(
-                observations=self.observations, **background_params
-            )
-            self.background_estimator.run()
-        else:
-            # TODO: raise error?
-            log.info("Background estimation only for reflected regions method.")
+            bkg_maker = ReflectedRegionsBackgroundMaker(**background_params)
+
+        safe_mask_maker = SafeMaskMaker()
 
         extraction_params = {}
         if "containment_correction" in self.settings["datasets"]:
@@ -325,14 +324,23 @@ class Analysis:
         params = self.settings["datasets"]["geom"]["axes"][0]
         e_reco = MapAxis.from_bounds(**params).edges
         extraction_params["e_reco"] = e_reco
-        extraction_params["e_true"] = None
-        self.extraction = SpectrumExtraction(
-            observations=self.observations,
-            bkg_estimate=self.background_estimator.result,
-            **extraction_params,
-        )
-        self.extraction.run()
-        self.datasets = Datasets(self.extraction.spectrum_observations)
+
+        # TODO: remove hard code e_true here
+        extraction_params["e_true"] = np.logspace(-2, 2.5, 109) * u.TeV
+        extraction_params["region"] = on_region
+
+        dataset_maker = SpectrumDatasetMaker(**extraction_params)
+
+        datasets = []
+
+        for obs in self.observations:
+            dataset = dataset_maker.run(obs, selection=["counts", "aeff", "edisp"])
+            dataset = bkg_maker.run(dataset, obs)
+            dataset = safe_mask_maker.run(dataset, obs)
+            datasets.append(dataset)
+
+        self.datasets = Datasets(datasets)
+
         if self.settings["datasets"]["stack-datasets"]:
             stacked = self.datasets.stack_reduce()
             stacked.name = "stacked"
