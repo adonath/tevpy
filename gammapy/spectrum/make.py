@@ -299,10 +299,10 @@ class SafeMaskMaker:
             mask_safe &= self.make_mask_energy_aeff_default(dataset, observation)
 
         if "aeff-max" in self.methods:
-            mask_safe &= self.make_mask_energy_aeff_max(dataset, observation)
+            mask_safe &= self.make_mask_energy_aeff_max(dataset)
 
         if "edisp-bias" in self.methods:
-            mask_safe &= self.make_mask_energy_edisp_bias(dataset, observation)
+            mask_safe &= self.make_mask_energy_edisp_bias(dataset)
 
         dataset.mask_safe = mask_safe
         return dataset
