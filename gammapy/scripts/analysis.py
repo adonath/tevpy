@@ -314,6 +314,7 @@ class Analysis:
         if background["background_estimator"] == "reflected":
             bkg_maker = ReflectedRegionsBackgroundMaker(**background_params)
 
+        # TODO: make SafeMaskMaker configurable
         safe_mask_maker = SafeMaskMaker()
 
         extraction_params = {}
@@ -325,7 +326,7 @@ class Analysis:
         e_reco = MapAxis.from_bounds(**params).edges
         extraction_params["e_reco"] = e_reco
 
-        # TODO: remove hard code e_true here
+        # TODO: remove hard code e_true here and make it configurable
         extraction_params["e_true"] = np.logspace(-2, 2.5, 109) * u.TeV
         extraction_params["region"] = on_region
 
