@@ -3,6 +3,7 @@ from astropy import units as u
 from astropy.wcs.utils import proj_plane_pixel_area
 from regions import CircleSkyRegion
 from gammapy.utils.regions import make_region
+import copy
 from .geom import Geom, axes_pix_to_coord, pix_tuple_to_idx, make_axes, frame_to_coordsys
 from .wcs import WcsGeom
 from .base import MapCoord
@@ -33,7 +34,7 @@ class RegionGeom(Geom):
 
         if wcs is None:
             wcs = WcsGeom.create(
-                skydir=region.center, binsz=0.001, width=region.radius, proj="TAN"
+                skydir=region.center, binsz=0.001, width=self.width, proj=self.projection
             ).wcs
 
         self._wcs = wcs
@@ -83,7 +84,14 @@ class RegionGeom(Geom):
 
     @property
     def data_shape(self):
-        return tuple([ax.nbin for ax in self.axes]) + (1, 1)
+        """Shape of the Numpy data array matching this geometry."""
+        return self._shape[::-1]
+
+    @property
+    def _shape(self):
+        npix_shape = [1, 1]
+        ax_shape = [ax.nbin for ax in self.axes]
+        return tuple(npix_shape + ax_shape)
 
     def get_coord(self, coordsys=None):
         """Get map coordinates from the geometry.
@@ -106,10 +114,10 @@ class RegionGeom(Geom):
         return MapCoord.create(cdict, coordsys=self.coordsys).to_coordsys(coordsys)
 
     def pad(self):
-        raise NotImplementedError("Padding of `RegionGeom` not implemented")
+        raise NotImplementedError("Padding of `RegionGeom` not supported")
 
     def crop(self):
-        raise NotImplementedError("Cropping of `RegionGeom` not implemented")
+        raise NotImplementedError("Cropping of `RegionGeom` not supported")
 
     def solid_angle(self):
         area = self.region.to_pixel(self.wcs).area
@@ -120,6 +128,7 @@ class RegionGeom(Geom):
         return self.solid_angle() * self.axes[0].bin_width.reshape((-1, 1, 1))
 
     def to_cube(self, axes):
+        axes = copy.deepcopy(self.axes) + axes
         return self._init_copy(axes=axes)
 
     def to_image(self):
@@ -170,9 +179,10 @@ class RegionGeom(Geom):
 
     def get_idx(self):
         idxs = (0, 0)
-        for ax in self.axes:
-            idxs += np.arange(ax.nbin)
-        return idxs
+        if self.axes is not None:
+            for ax in self.axes:
+                idxs += (np.arange(ax.nbin).reshape((-1, 1, 1)),)
+        return np.broadcast_arrays(*idxs)
 
     def _make_bands_cols(self):
         pass

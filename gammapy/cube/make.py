@@ -94,14 +94,20 @@ class MapDatasetMaker:
     @lazyproperty
     def geom_image_irf(self):
         """Spatial geometry of IRF Maps (`Geom`)"""
-        wcs = self.geom.to_image()
-        return WcsGeom.create(
-            binsz=self.binsz_irf,
-            width=wcs.width + self.margin_irf,
-            skydir=wcs.center_skydir,
-            proj=wcs.projection,
-            coordsys=wcs.coordsys,
-        )
+        geom_image = self.geom.to_image()
+
+        if isinstance(self.geom, WcsGeom):
+            geom_irf = WcsGeom.create(
+                binsz=self.binsz_irf,
+                width=geom_image.width + self.margin_irf,
+                skydir=geom_image.center_skydir,
+                proj=geom_image.projection,
+                coordsys=geom_image.coordsys,
+            )
+        else:
+            geom_irf = geom_image
+
+        return geom_irf
 
     @lazyproperty
     def geom_exposure_irf(self):

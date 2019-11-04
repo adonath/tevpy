@@ -393,13 +393,16 @@ class MapDataset(Dataset):
         geom_image = geom.to_image()
         geom_exposure = geom_image.to_cube([energy_axis_true])
 
-        geom_irf = WcsGeom.create(
-            binsz=binsz_irf,
-            width=geom_image.width + margin_irf,
-            skydir=geom_image.center_skydir,
-            proj=geom_image.projection,
-            coordsys=geom_image.coordsys,
-        )
+        if isinstance(geom, WcsGeom):
+            geom_irf = WcsGeom.create(
+                binsz=binsz_irf,
+                width=geom_image.width + margin_irf,
+                skydir=geom_image.center_skydir,
+                proj=geom_image.projection,
+                coordsys=geom_image.coordsys,
+            )
+        else:
+            geom_irf = geom_image
 
         geom_psf = geom_irf.to_cube([rad_axis, energy_axis_true])
         geom_edisp = geom_irf.to_cube([migra_axis, energy_axis_true])

@@ -216,11 +216,14 @@ class Map(abc.ABC):
 
             from .hpx import HpxGeom
             from .wcs import WcsGeom
+            from .region import RegionGeom
 
             if isinstance(geom, HpxGeom):
                 map_type = "hpx"
             elif isinstance(geom, WcsGeom):
                 map_type = "wcs"
+            elif isinstance(geom, RegionGeom):
+                map_type = "region"
             else:
                 raise ValueError("Unrecognized geom type.")
 
@@ -285,6 +288,9 @@ class Map(abc.ABC):
             from .hpxsparse import HpxSparseMap
 
             return HpxSparseMap
+        elif map_type == "region":
+            from .regionnd import RegionNDMap
+            return RegionNDMap
         else:
             raise ValueError(f"Unrecognized map type: {map_type!r}")
 

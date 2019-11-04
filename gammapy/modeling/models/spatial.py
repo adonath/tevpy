@@ -477,6 +477,9 @@ class ConstantSpatialModel(SpatialModel):
         """Evaluate model."""
         return value
 
+    def evaluate_geom(self, geom):
+        return 1 / geom.solid_angle()
+
     @staticmethod
     def to_region(**kwargs):
         """Model outline (`~regions.EllipseSkyRegion`)."""
