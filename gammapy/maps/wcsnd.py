@@ -10,7 +10,7 @@ from astropy.convolution import Tophat2DKernel
 from astropy.io import fits
 from gammapy.extern.skimage import block_reduce
 from gammapy.utils.interpolation import ScaledRegularGridInterpolator
-from gammapy.utils.random import InverseCDFSampler, get_random_state
+from gammapy.utils.random import InverseCDFSampler, get_random_state, distribute_coords_log
 from gammapy.utils.units import unit_from_fits_image_hdu
 from .geom import MapCoord, pix_tuple_to_idx
 from .utils import INVALID_INDEX, interp_to_order
@@ -724,15 +724,24 @@ class WcsNDMap(WcsMap):
         coords : `~gammapy.maps.MapCoord` object.
             Sequence of coordinates and energies of the sampled events.
         """
+        if len(self.geom.axes) > 1 and self.geom.axes[0] == "energy":
+            raise ValueError("Sampling is only supported for maps with an energy axis.")
 
         random_state = get_random_state(random_state)
-        sampler = InverseCDFSampler(pdf=self.data, random_state=random_state)
+        sampler = InverseCDFSampler(pdf=self.data, random_state=random_state, distribute=False)
+        coords_pix = sampler.sample(n_events).astype(float)
 
-        coords_pix = sampler.sample(n_events)
+        # Interpolate spatial coordinates:
+        size = len(coords_pix[0])
+        coords_pix[2] += random_state.uniform(low=-0.5, high=0.5, size=size)
+        coords_pix[1] += random_state.uniform(low=-0.5, high=0.5, size=size)
+
         coords = self.geom.pix_to_coord(coords_pix[::-1])
 
         # TODO: pix_to_coord should return a MapCoord object
-        axes_names = ["lon", "lat"] + [ax.name for ax in self.geom.axes]
+        axes_names = ["lon", "lat", "energy"]
         cdict = OrderedDict(zip(axes_names, coords))
 
+        axis = self.geom.axes[0]
+        cdict["energy"] = distribute_coords_log(cdict, self, axis)
         return MapCoord.create(cdict, frame=self.geom.frame)

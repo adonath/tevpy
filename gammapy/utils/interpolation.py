@@ -69,7 +69,7 @@ class ScaledRegularGridInterpolator:
             )
         else:
             self._interpolate = scipy.interpolate.interp1d(
-                points_scaled[0], values_scaled, axis=axis
+                points_scaled[0], values_scaled, axis=axis, **kwargs
             )
 
     def __call__(self, points, method="linear", clip=True, **kwargs):
