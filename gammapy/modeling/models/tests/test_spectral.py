@@ -598,3 +598,12 @@ class TestSpectralModelErrorPropagation:
 
         out = model.evaluate_error(0.1 * u.TeV)
         assert_allclose(out.data, [1.548176e-10, 1.933612e-11], rtol=1e-3)
+
+
+def test_absorbed_extrapolate():
+    ebl_model = 'dominguez'
+    z = 0.0000000001
+    absorption = Absorption.read_builtin(ebl_model).table_model(z)
+    value = absorption(energy=1 * u.TeV).value
+    assert_allclose(value, 0.907581, rtol=1e-5)
+

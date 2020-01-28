@@ -955,7 +955,7 @@ class TemplateSpectralModel(SpectralModel):
         meta=None,
     ):
         self.energy = energy
-        self.values = values
+        self.values = u.Quantity(values, copy=False)
         self.meta = dict() if meta is None else meta
         interp_kwargs = interp_kwargs or {}
         interp_kwargs.setdefault("values_scale", "log")
@@ -1161,6 +1161,7 @@ class Absorption:
         # Get spectrum values
         table_spectra = Table.read(filename, hdu="SPECTRA")
         data = table_spectra["INTPSPEC"].data[idx, :]
+
         return cls(energy=energy, param=param, data=data, filename=filename)
 
     @classmethod
@@ -1204,7 +1205,7 @@ class Absorption:
 
     def evaluate(self, energy, parameter):
         """Evaluate model for energy and parameter value."""
-        return self._evaluate((parameter, energy))
+        return np.clip(self._evaluate((parameter, energy)), 0, 1)
 
 
 class AbsorbedSpectralModel(SpectralModel):
