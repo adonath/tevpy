@@ -4,102 +4,107 @@ import logging
 import numpy as np
 from .likelihood import Likelihood
 
-__all__ = ["optimize_iminuit", "covariance_iminuit", "confidence_iminuit", "mncontour"]
+__all__ = ["MinuitFitBackend", "mncontour"]
 
 log = logging.getLogger(__name__)
 
 
-class MinuitLikelihood(Likelihood):
-    """Likelihood function interface for iminuit."""
+class MinuitFitBackend:
+    """Minuit fit backend"""
+    tag = "minuit"
+
+    def __init__(self, **kwargs):
+        self.options = kwargs
 
     def fcn(self, *factors):
         self.parameters.set_parameter_factors(factors)
         return self.function()
 
-
-def optimize_iminuit(parameters, function, **kwargs):
-    """iminuit optimization
-
-    Parameters
-    ----------
-    parameters : `~gammapy.modeling.Parameters`
-        Parameters with starting values
-    function : callable
-        Likelihood function
-    **kwargs : dict
-        Options passed to `iminuit.Minuit` constructor. If there is an entry 'migrad_opts', those options
-        will be passed to `iminuit.Minuit.migrad()`.
-
-    Returns
-    -------
-    result : (factors, info, optimizer)
-        Tuple containing the best fit factors, some info and the optimizer instance.
-    """
-    from iminuit import Minuit
-
-    # In Gammapy, we have the factor 2 in the likelihood function
-    # This means `errordef=1` in the Minuit interface is correct
-    kwargs.setdefault("errordef", 1)
-    kwargs.setdefault("print_level", 0)
-    kwargs.update(make_minuit_par_kwargs(parameters))
-
-    minuit_func = MinuitLikelihood(function, parameters)
-
-    kwargs = kwargs.copy()
-    migrad_opts = kwargs.pop("migrad_opts", {})
-    strategy = kwargs.pop("strategy", 1)
-    tol = kwargs.pop("tol", 0.1)
-    minuit = Minuit(minuit_func.fcn, **kwargs)
-    minuit.tol = tol
-    minuit.strategy = strategy
-    minuit.migrad(**migrad_opts)
-
-    factors = minuit.args
-    info = {
-        "success": minuit.migrad_ok(),
-        "nfev": minuit.get_num_call_fcn(),
-        "message": _get_message(minuit, parameters),
-    }
-    optimizer = minuit
-
-    return factors, info, optimizer
+    def optimize(self, parameters, function):
 
 
-def covariance_iminuit(minuit):
-    # TODO: add minuit.hesse() call once we have better tests
 
-    message, success = "Hesse terminated successfully.", True
-    try:
-        covariance_factors = minuit.np_covariance()
-    except (TypeError, RuntimeError):
-        N = len(minuit.args)
-        covariance_factors = np.nan * np.ones((N, N))
-        message, success = "Hesse failed", False
-    return covariance_factors, {"success": success, "message": message}
+    def optimize(self, **kwargs):
+        """iminuit optimization
 
+        Parameters
+        ----------
+        parameters : `~gammapy.modeling.Parameters`
+            Parameters with starting values
+        function : callable
+            Likelihood function
+        **kwargs : dict
+            Options passed to `iminuit.Minuit` constructor. If there is an entry 'migrad_opts', those options
+            will be passed to `iminuit.Minuit.migrad()`.
 
-def confidence_iminuit(minuit, parameters, parameter, sigma, maxcall=0):
-    # TODO: this is ugly - design something better for translating to MINUIT parameter names.
-    # Maybe a wrapper class MinuitParameters?
-    parameter = parameters[parameter]
-    idx = parameters.free_parameters.index(parameter)
-    var = _make_parname(idx, parameter)
+        Returns
+        -------
+        result : (factors, info, optimizer)
+            Tuple containing the best fit factors, some info and the optimizer instance.
+        """
+        from iminuit import Minuit
 
-    message, success = "Minos terminated successfully.", True
-    try:
-        result = minuit.minos(var=var, sigma=sigma, maxcall=maxcall)
-        info = result[var]
-    except RuntimeError as error:
-        message, success = str(error), False
-        info = {"is_valid": False, "lower": np.nan, "upper": np.nan, "nfcn": 0}
+        # In Gammapy, we have the factor 2 in the likelihood function
+        # This means `errordef=1` in the Minuit interface is correct
+        kwargs.setdefault("errordef", 1)
+        kwargs.setdefault("print_level", 0)
+        kwargs.update(make_minuit_par_kwargs(self.parameters))
 
-    return {
-        "success": success,
-        "message": message,
-        "errp": info["upper"],
-        "errn": -info["lower"],
-        "nfev": info["nfcn"],
-    }
+        kwargs = kwargs.copy()
+        migrad_opts = kwargs.pop("migrad_opts", {})
+        strategy = kwargs.pop("strategy", 1)
+        tol = kwargs.pop("tol", 0.1)
+        minuit = Minuit(self.fcn, **self.options)
+        minuit.tol = tol
+        minuit.strategy = strategy
+        minuit.migrad(**migrad_opts)
+
+        factors = minuit.args
+        info = {
+            "success": minuit.migrad_ok(),
+            "nfev": minuit.get_num_call_fcn(),
+            "message": _get_message(minuit, self.parameters),
+        }
+        optimizer = minuit
+
+        return factors, info, optimizer
+
+    @staticmethod
+    def covariance(minuit):
+        # TODO: add minuit.hesse() call once we have better tests
+
+        message, success = "Hesse terminated successfully.", True
+        try:
+            covariance_factors = minuit.np_covariance()
+        except (TypeError, RuntimeError):
+            N = len(minuit.args)
+            covariance_factors = np.nan * np.ones((N, N))
+            message, success = "Hesse failed", False
+        return covariance_factors, {"success": success, "message": message}
+
+    @staticmethod
+    def confidence(minuit, parameters, parameter, sigma, maxcall=0):
+        # TODO: this is ugly - design something better for translating to MINUIT parameter names.
+        # Maybe a wrapper class MinuitParameters?
+        parameter = parameters[parameter]
+        idx = parameters.free_parameters.index(parameter)
+        var = _make_parname(idx, parameter)
+
+        message, success = "Minos terminated successfully.", True
+        try:
+            result = minuit.minos(var=var, sigma=sigma, maxcall=maxcall)
+            info = result[var]
+        except RuntimeError as error:
+            message, success = str(error), False
+            info = {"is_valid": False, "lower": np.nan, "upper": np.nan, "nfcn": 0}
+
+        return {
+            "success": success,
+            "message": message,
+            "errp": info["upper"],
+            "errn": -info["lower"],
+            "nfev": info["nfcn"],
+        }
 
 
 def mncontour(minuit, parameters, x, y, numpoints, sigma):

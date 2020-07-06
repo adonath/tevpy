@@ -150,18 +150,18 @@ class Fit:
         fit_result : `FitResult`
             Results
         """
+        backend = FIT_BACKENDS.get_cls(backend)(**kwargs)
         parameters = self._parameters
 
         # TODO: expose options if / when to scale? On the Fit class?
         if np.all(self._models.covariance.data == 0):
             parameters.autoscale()
 
-        compute = registry.get("optimize", backend)
         # TODO: change this calling interface!
         # probably should pass a fit statistic, which has a model, which has parameters
         # and return something simpler, not a tuple of three things
-        factors, info, optimizer = compute(
-            parameters=parameters, function=self.datasets.stat_sum, **kwargs
+        factors, info, optimizer = backend.optimize(
+            parameters=parameters, function=self.datasets.stat_sum
         )
 
         # TODO: Change to a stateless interface for minuit also, or if we must support
