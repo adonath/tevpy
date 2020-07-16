@@ -41,6 +41,7 @@ class FluxProfileEstimator(Estimator):
 
         for reg in self.regions:
             spectrum_dataset = dataset.to_spectrum_dataset(reg)
+            spectrum_dataset.models = dataset.models.copy()
             datasets.append(spectrum_dataset)
 
         return datasets
@@ -50,7 +51,7 @@ class FluxProfileEstimator(Estimator):
         table_flat = Table()
 
         for column in table.columns:
-            table_flat[column.name] = column.reshape((1, -1))
+            table_flat[column] = table[column].reshape((1, -1))
 
         return table_flat
 
@@ -74,10 +75,38 @@ class FluxProfileEstimator(Estimator):
         return vstack(results)
 
 
-class FluxProfile:
+class FluxProfiles:
     """"""
     def __init__(self, table):
-        self.table
+        self.table = table
+
+    @property
+    def regions(self):
+        """List of regions"""
+        pass
+
+    def get_flux_points(self, idx):
+        """Get flux points bat given index.
+
+        Parameters
+        ----------
+        idx : int
+            Index of the region.
+        """
+        pass
+
+    def get_profile(self, energy):
+        """"""
+        pass
+
+    def peek(self):
+        pass
+
+    def read(self):
+        pass
+
+    def write(self):
+        pass
 
 
 
