@@ -2,6 +2,7 @@
 import numpy as np
 import scipy.special
 from scipy.interpolate import interp1d
+from scipy.optimize import brentq
 from astropy.coordinates import Angle
 from astropy.io import fits
 from astropy.table import Table
@@ -239,6 +240,85 @@ class EnergyDispersion2D:
             data=data,
         )
 
+    def get_migra_mean(self, offset, e_true=None):
+        """Mean of the migration
+
+        Parameters
+        ----------
+        offset : `~astropy.coordinates.Angle`
+            Offset
+        e_true : `~astropy.units.Quantity`
+            True energy
+
+        Returns
+        -------
+        migra_mean : `~np.ndarray`
+            Mean migration
+        """
+        if e_true is None:
+            e_true = self.data.axis("energy_true").center
+
+        migra_axis = self.data.axis("migra")
+        pdf = self.data.evaluate(offset=offset, energy_true=e_true).squeeze()
+        pdf /= pdf.sum(axis=0)
+        migra_mean = (migra_axis.center[:, np.newaxis] * pdf).sum(axis=0)
+        return migra_mean
+
+    def get_resolution(self, offset, e_true=None, containment=0.68):
+        """Get resolution
+
+        Parameters
+        ----------
+        offset : `~astropy.coordinates.Angle`
+            Offset
+        e_true : `~astropy.units.Quantity`
+            True energy
+        containment : float
+            Containment fraction used for the computation.
+
+        Returns
+        -------
+        resolution : `~np.ndarray`
+            Resolution as a function of true energy.
+        """
+        if e_true is None:
+            e_true = self.data.axis("energy_true").center
+
+        migra_axis = self.data.axis("migra")
+        energy_axis_true = self.data.axis("energy_true")
+
+        resolution = []
+
+        pdf_offset = self.data.evaluate(offset=offset).squeeze()
+
+        for e_min, e_max in e_true.iter_by_bounds():
+            idx_min = energy_axis_true.coord_to_idx(e_min)
+            idx_max = energy_axis_true.coord_to_idx(e_max)
+            pdf = pdf_offset[int(idx_min):int(idx_max)].sum(axis=0)
+            pdf /= pdf.sum()
+            mean = (migra_axis.center * pdf).sum()
+
+            cumsum = np.insert(pdf, 0, 0).cumsum()
+
+            f = interp1d(
+                migra_axis.edges.value,
+                cumsum,
+                kind="quadratic",
+                bounds_error=False,
+                fill_value=(0, 1),
+            )
+
+            def f_root(x):
+                migra_min = mean - x
+                migra_max = mean + x
+                integral = np.clip(f(migra_max), a_min=0, a_max=1) - np.clip(f(migra_min), a_min=0, a_max=1)
+                return integral - containment
+
+            delta_migra = brentq(f_root, 0, 3)
+            resolution.append(delta_migra)
+
+        return resolution
+
     def get_response(self, offset, e_true, e_reco=None):
         """Detector response R(Delta E_reco, E_true)
 
@@ -296,6 +376,12 @@ class EnergyDispersion2D:
         integral = np.diff(np.clip(f(migra), a_min=0, a_max=1))
 
         return integral
+
+    def plot_resolution(self, offset, ax=None, e_true=None):
+        """"""
+
+        import matplotlib.pyplot as plt
+        ax = plt.gca() if ax is None else ax
 
     def plot_migration(self, ax=None, offset=None, e_true=None, migra=None, **kwargs):
         """Plot energy dispersion for given offset and true energy.

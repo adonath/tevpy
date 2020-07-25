@@ -653,6 +653,18 @@ class MapAxis:
         """
         return self._init_copy(**kwargs)
 
+    def iter_by_bounds(self):
+        """Iterate over the axis.
+
+        Returns
+        -------
+        (edge_min, edge_max) : tuple
+            Edge values
+        """
+        edges = self.edges
+        for edge_min, edge_max in zip(edges[:-1], edges[1:]):
+            yield edge_min, edge_max
+
     def group_table(self, edges):
         """Compute bin groups table for the map axis, given coarser bin edges.
 

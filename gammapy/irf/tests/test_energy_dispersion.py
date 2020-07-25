@@ -180,6 +180,21 @@ class TestEnergyDispersion2D:
             self.edisp.peek()
 
 
+def test_get_resolution():
+    sigma = 0.1
+    e_true = np.logspace(0, 1, 2) * u.TeV
+    edisp = EnergyDispersion2D.from_gauss(
+        e_true=e_true,
+        sigma=sigma,
+        bias=0,
+        offset=[0, 1] * u.deg,
+        migra=np.linspace(0, 3, 100)
+    )
+
+    resolution = edisp.get_resolution(offset=0.5 * u.deg)
+    assert_allclose(resolution, sigma, rtol=0.01)
+
+
 @requires_data("gammapy-data")
 def test_get_bias_energy():
     """Obs read from file"""
@@ -187,3 +202,5 @@ def test_get_bias_energy():
     edisp = EDispKernel.read(rmffile)
     thresh_lo = edisp.get_bias_energy(0.1)
     assert_allclose(thresh_lo.to("TeV").value, 0.9174, rtol=1e-4)
+
+
