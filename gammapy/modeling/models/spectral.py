@@ -1063,19 +1063,21 @@ class ScaleSpectralModel(SpectralModel):
         return self.norm.value * self.model.integral(emin, emax, **kwargs)
 
 
-class Absorption:
-    r"""Gamma-ray absorption models.
-
-    For more information see :ref:`absorption-spectral-model`.
+class EBLAbsorptionNormSpectralModel(SpectralModel):
+    r"""EBL absorption model.
 
     Parameters
     ----------
     energy : `~astropy.units.Quantity`
         Energy node values
-    param : `~astropy.units.Quantity`
-        Parameter node values
-    data : `~astropy.units.Quantity`
+    values : `~astropy.units.Quantity`
         Model value
+    norm : `~astropy.units.Quantity`
+        Overall norm of the model.
+    redshift : `~astropy.units.Quantity`
+        Redshift value
+    alpha : `~astropy.units.Quantity`
+        Power norm of the EBL model
     filename : str
         Filename of the absorption model used for serialisation.
     interp_kwargs : dict
@@ -1083,34 +1085,42 @@ class Absorption:
         By default the models are extrapolated outside the range. To prevent
         this and raise an error instead use interp_kwargs = {"extrapolate": False}
     """
+    tag = ["EBLAbsorptionNormSpectralModel", "ebl-absorption-norm"]
+    alpha = Parameter("alpha", 1.0, frozen=True)
+    redshift = Parameter("redshift", 0.1, frozen=True)
 
-    tag = "Absorption"
-
-    def __init__(self, energy, param, data, filename=None, interp_kwargs=None):
-        self.data = data
+    def __init__(self, energy, redshifts, values, redshift, alpha, filename=None, interp_kwargs=None):
+        self.energy = energy
+        self.redshifts = redshift
+        self.values = values
         self.filename = filename
         # set values log centers
-        self.param = param
-        self.energy = energy
 
         interp_kwargs = interp_kwargs or {}
         interp_kwargs.setdefault("points_scale", ("log", "lin"))
         interp_kwargs.setdefault("extrapolate", True)
 
         self._evaluate = ScaledRegularGridInterpolator(
-            points=(self.param, self.energy), values=data, **interp_kwargs
+            points=(redshifts, self.energy), values=values, **interp_kwargs
         )
+
+        if not isinstance(redshift, Parameter):
+            redshift = Parameter(
+                "redshift", redshift, frozen=True, min=np.min(redshifts), max=np.max(redshifts)
+            )
+        super().__init__(redshift=redshift, alpha=alpha)
 
     def to_dict(self):
         if self.filename is None:
             return {
                 "type": self.tag,
+                "parameters": self.parameters.to_dict(),
                 "energy": {
                     "data": self.energy.data.tolist(),
                     "unit": str(self.energy.unit),
                 },
                 "param": {
-                    "data": self.param.data.tolist(),
+                    "data": self.reshifts.data.tolist(),
                     "unit": str(self.param.unit),
                 },
                 "values": {
@@ -1119,7 +1129,11 @@ class Absorption:
                 },
             }
         else:
-            return {"type": self.tag, "filename": self.filename}
+            return {
+                "type": self.tag,
+                "filename": self.filename,
+                "parameters": self.parameters.to_dict(),
+            }
 
     @classmethod
     def from_dict(cls, data):
@@ -1209,7 +1223,7 @@ class Absorption:
 
         return cls.read(models[name], interp_kwargs=interp_kwargs)
 
-    def table_model(self, parameter):
+    def to_table_model(self, parameter):
         """Table model for a given parameter value.
 
         Parameters
@@ -1228,9 +1242,10 @@ class Absorption:
             energy=energy, values=values, interp_kwargs={"values_scale": "log"}
         )
 
-    def evaluate(self, energy, parameter):
+    def evaluate(self, energy, norm, redshift, alpha):
         """Evaluate model for energy and parameter value."""
-        return np.clip(self._evaluate((parameter, energy)), 0, 1)
+        value = np.clip(self._evaluate((redshift, energy)), 0, 1)
+        return norm * np.power(value, alpha)
 
 
 class AbsorbedSpectralModel(SpectralModel):
