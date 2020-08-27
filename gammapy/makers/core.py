@@ -55,27 +55,36 @@ class DatasetsMaker:
     overwrite : bool
         Whether to overwrite
     naming_scheme : str
-        Naming scheme including placeholders.
+        Naming scheme including the placeholders "obs_id" and "idx".
+    constant_irfs : bool
+        Option to stack IRFs if they are constant. This avoids re-computing
+        the IRFs per observation, but just scale them to the stacked livetime.
     """
     def __init__(
             self,
             makers,
-            path=".",
+            path=None,
             overwrite=True,
             cutout_mode="partial",
             cutout_width="5 deg",
             n_jobs=None,
             stack=False,
-            naming_scheme=None
+            naming_scheme=None,
+            constant_irfs=False
     ):
         self.makers = makers
-        self.path = Path(path)
+
+        if path:
+            path = Path(path)
+
+        self.path = path
         self.overwrite = overwrite
         self.cutout_mode = cutout_mode
         self.cutout_width = cutout_width
         self.n_jobs = n_jobs
         self.stack = stack
         self.naming_scheme = naming_scheme
+        self.constant_irfs = constant_irfs
 
     def make_dataset(self, dataset, observation):
         """Make single dataset.
