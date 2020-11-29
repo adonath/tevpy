@@ -14,7 +14,7 @@ from gammapy.irf.edisp_map import EDispKernelMap, EDispMap
 from gammapy.irf.psf_kernel import PSFKernel
 from gammapy.irf.psf_map import PSFMap
 from gammapy.maps import Map, MapAxis, RegionGeom
-from gammapy.modeling.models import BackgroundModel, DatasetModels
+from gammapy.modeling.models import DatasetModels
 from gammapy.stats import (
     CashCountsStatistic,
     WStatCountsStatistic,
@@ -2438,7 +2438,7 @@ class MapEvaluator:
         self.evaluation_mode = evaluation_mode
 
         # TODO: this is preliminary solution until we have further unified the model handling
-        if isinstance(self.model, BackgroundModel) or self.model.spatial_model is None:
+        if self.model.spatial_model is None:
             self.evaluation_mode = "global"
 
         # define cached computations
@@ -2477,9 +2477,7 @@ class MapEvaluator:
     def needs_update(self):
         """Check whether the model component has drifted away from its support."""
         # TODO: simplify and clean up
-        if isinstance(self.model, BackgroundModel):
-            return False
-        elif self.exposure is None:
+        if self.exposure is None:
             return True
         elif self.evaluation_mode == "global" or self.model.evaluation_radius is None:
             return False
@@ -2634,29 +2632,20 @@ class MapEvaluator:
 
     def _compute_npred(self):
         """Compute npred"""
-        if isinstance(self.model, BackgroundModel):
-            npred = self.model.evaluate()
-        else:
-            npred = self.compute_flux_psf_convolved()
+        npred = self.compute_flux_psf_convolved()
 
-            if self.model.apply_irf["exposure"]:
-                npred = self.apply_exposure(npred)
+        if self.model.apply_irf["exposure"]:
+            npred = self.apply_exposure(npred)
 
-            npred = self.apply_edisp(npred)
-
-        return npred
+        return self.apply_edisp(npred)
 
     @property
     def apply_psf_after_edisp(self):
         """"""
-        if not isinstance(self.model, BackgroundModel):
-            return self.model.apply_irf.get("psf_after_edisp")
+        return self.model.apply_irf.get("psf_after_edisp")
 
     # TODO: remove again if possible...
     def _compute_npred_psf_after_edisp(self):
-        if isinstance(self.model, BackgroundModel):
-            return self.model.evaluate()
-
         npred = self.compute_flux()
 
         if self.model.apply_irf["exposure"]:

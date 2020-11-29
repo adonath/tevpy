@@ -1,12 +1,10 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """Cube models (axes: lon, lat, energy)."""
-import copy
 import numpy as np
 import astropy.units as u
 from gammapy.maps import Map, MapAxis, WcsGeom
 from gammapy.modeling import Covariance, Parameters
 from gammapy.modeling.parameter import _get_parameters_str
-from gammapy.utils.fits import LazyFitsData
 from gammapy.utils.scripts import make_name, make_path
 from .core import Model, Models
 from .spatial import ConstantSpatialModel, SpatialModel, TemplateSpatialModel
@@ -16,7 +14,6 @@ from .temporal import TemporalModel
 __all__ = [
     "SkyModel",
     "FoVBackgroundModel",
-    "BackgroundModel",
     "create_fermi_isotropic_diffuse_model",
 ]
 
@@ -445,7 +442,7 @@ class SkyModel(Model):
     @classmethod
     def from_npred_template(cls, npred, spectral_model=None, name=None):
         """Create npred template.
-        
+
 
         Parameters
         ----------
@@ -597,212 +594,6 @@ class FoVBackgroundModel(Model):
     def copy(self, **kwargs):
         """Copy SkyModel"""
         return self.__class__(**kwargs)
-
-
-class BackgroundModel(Model):
-    """Background model.
-
-    Create a new map by a tilt and normalization on the available map
-
-    Parameters
-    ----------
-    map : `~gammapy.maps.Map`
-        Background model map
-    spectral_model : `~gammapy.modeling.models.SpectralModel`
-        Normalized spectral model,
-        default is `~gammapy.modeling.models.PowerLawNormSpectralModel`
-    """
-
-    tag = "BackgroundModel"
-    map = LazyFitsData(cache=True)
-
-    def __init__(
-        self, map, spectral_model=None, name=None, filename=None, datasets_names=None,
-    ):
-        if isinstance(map, Map):
-            axis = map.geom.axes["energy"]
-            if axis.node_type != "edges":
-                raise ValueError(
-                    'Need an integrated map, energy axis node_type="edges"'
-                )
-
-        self.map = map
-        self._name = make_name(name)
-        self.filename = filename
-
-        if spectral_model is None:
-            spectral_model = PowerLawNormSpectralModel()
-            spectral_model.tilt.frozen = True
-
-        self.spectral_model = spectral_model
-
-        if isinstance(datasets_names, list):
-            if len(datasets_names) != 1:
-                raise ValueError(
-                    "Currently background models can only be assigned to one dataset."
-                )
-        self.datasets_names = datasets_names
-        super().__init__()
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def energy_center(self):
-        """True energy axis bin centers (`~astropy.units.Quantity`)"""
-        energy_axis = self.map.geom.axes["energy"]
-        energy = energy_axis.center
-        return energy[:, np.newaxis, np.newaxis]
-
-    @property
-    def spectral_model(self):
-        """`~gammapy.modeling.models.SpectralModel`"""
-        return self._spectral_model
-
-    @spectral_model.setter
-    def spectral_model(self, model):
-        if not (model is None or isinstance(model, SpectralModel)):
-            raise TypeError(f"Invalid type: {model!r}")
-        self._spectral_model = model
-
-    @property
-    def parameters(self):
-        parameters = []
-        parameters.append(self.spectral_model.parameters)
-        return Parameters.from_stack(parameters)
-
-    def evaluate(self):
-        """Evaluate background model.
-
-        Returns
-        -------
-        background_map : `~gammapy.maps.Map`
-            Background evaluated on the Map
-        """
-        value = self.spectral_model(self.energy_center).value
-        back_values = self.map.data * value
-        return self.map.copy(data=back_values)
-
-    def to_dict(self, full_output=False):
-        data = {}
-        data["name"] = self.name
-        data["type"] = self.tag
-        data["spectral"] = self.spectral_model.to_dict(full_output)
-
-        if self.filename is not None:
-            data["filename"] = self.filename
-
-        if self.datasets_names is not None:
-            data["datasets_names"] = self.datasets_names
-
-        return data
-
-    @classmethod
-    def from_dict(cls, data):
-        from gammapy.modeling.models import SPECTRAL_MODEL_REGISTRY
-
-        spectral_data = data.get("spectral")
-        if spectral_data is not None:
-            model_class = SPECTRAL_MODEL_REGISTRY.get_cls(spectral_data["type"])
-            spectral_model = model_class.from_dict(spectral_data)
-        else:
-            spectral_model = None
-
-        if "filename" in data:
-            bkg_map = Map.read(data["filename"])
-        elif "map" in data:
-            bkg_map = data["map"]
-        else:
-            # TODO: for now create a fake map for serialization,
-            # uptdated in MapDataset.from_dict()
-            axis = MapAxis.from_edges(np.logspace(-1, 1, 2), unit=u.TeV, name="energy")
-            geom = WcsGeom.create(
-                skydir=(0, 0), npix=(1, 1), frame="galactic", axes=[axis]
-            )
-            bkg_map = Map.from_geom(geom)
-
-        return cls(
-            map=bkg_map,
-            spectral_model=spectral_model,
-            name=data["name"],
-            datasets_names=data.get("datasets_names"),
-            filename=data.get("filename"),
-        )
-
-    def copy(self, name=None):
-        """A deep copy."""
-        new = copy.deepcopy(self)
-        new._name = make_name(name)
-        return new
-
-    def cutout(self, position, width, mode="trim", name=None):
-        """Cutout background model.
-
-        Parameters
-        ----------
-        position : `~astropy.coordinates.SkyCoord`
-            Center position of the cutout region.
-        width : tuple of `~astropy.coordinates.Angle`
-            Angular sizes of the region in (lon, lat) in that specific order.
-            If only one value is passed, a square region is extracted.
-        mode : {'trim', 'partial', 'strict'}
-            Mode option for Cutout2D, for details see `~astropy.nddata.utils.Cutout2D`.
-        name : str
-            Name of the returned background model.
-
-        Returns
-        -------
-        cutout : `BackgroundModel`
-            Cutout background model.
-        """
-        cutout_kwargs = {"position": position, "width": width, "mode": mode}
-
-        bkg_map = self.map.cutout(**cutout_kwargs)
-        spectral_model = self.spectral_model.copy()
-        return self.__class__(bkg_map, spectral_model=spectral_model, name=name)
-
-    def stack(self, other, weights=None):
-        """Stack background model in place.
-
-        Stacking the background model resets the current parameters values.
-
-        Parameters
-        ----------
-        other : `BackgroundModel`
-            Other background model.
-        """
-        bkg = self.evaluate()
-        other_bkg = other.evaluate()
-        bkg.stack(other_bkg, weights=weights)
-        self.map = bkg
-
-        # reset parameter values
-        self.spectral_model.norm.value = 1
-        self.spectral_model.tilt.value = 0
-
-    def __str__(self):
-        str_ = self.__class__.__name__ + "\n\n"
-        str_ += "\t{:26}: {}\n".format("Name", self.name)
-        str_ += "\t{:26}: {}\n".format("Datasets names", self.datasets_names)
-
-        str_ += "\tParameters:\n"
-        info = _get_parameters_str(self.parameters)
-        lines = info.split("\n")
-        str_ += "\t" + "\n\t".join(lines[:-1])
-
-        str_ += "\n\n"
-        return str_.expandtabs(tabsize=2)
-
-    @property
-    def position(self):
-        """`~astropy.coordinates.SkyCoord`"""
-        return self.map.geom.center_skydir
-
-    @property
-    def evaluation_radius(self):
-        """`~astropy.coordinates.Angle`"""
-        return np.max(self.map.geom.width) / 2.0
 
 
 def create_fermi_isotropic_diffuse_model(filename, **kwargs):
