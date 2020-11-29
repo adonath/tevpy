@@ -184,7 +184,7 @@ class SkyModel(Model):
     @property
     def evaluation_radius(self):
         """`~astropy.coordinates.Angle`"""
-        return self.spatial_model.evaluation_radius
+        return getattr(self.spatial_model, "evaluation_radius", None)
 
     @property
     def frame(self):
@@ -193,7 +193,7 @@ class SkyModel(Model):
     def __add__(self, other):
         if isinstance(other, (Models, list)):
             return Models([self, *other])
-        elif isinstance(other, (SkyModel, BackgroundModel)):
+        elif isinstance(other, SkyModel):
             return Models([self, other])
         else:
             raise TypeError(f"Invalid type: {other!r}")
