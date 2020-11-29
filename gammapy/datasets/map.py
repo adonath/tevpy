@@ -2519,13 +2519,13 @@ class MapEvaluator:
         # cache current position of the model component
 
         # lookup edisp
-        if edisp:
+        if edisp and self.model.apply_irf["edisp"]:
             energy_axis = geom.axes["energy"]
             self.edisp = edisp.get_edisp_kernel(
                 self.model.position, energy_axis=energy_axis
             )
 
-        if psf:
+        if psf and self.model.apply_irf["psf"]:
             if self.apply_psf_after_edisp:
                 geom = geom.as_energy_true
             else:
@@ -2580,7 +2580,7 @@ class MapEvaluator:
     def _compute_flux_spatial(self):
         """Compute spatial flux"""
         value = self.model.spatial_model.integrate_geom(self.geom)
-        if self.psf and self.model.apply_irf["psf"]:
+        if self.psf:
             value = self.apply_psf(value)
         return value
 
@@ -2642,8 +2642,7 @@ class MapEvaluator:
             if self.model.apply_irf["exposure"]:
                 npred = self.apply_exposure(npred)
 
-            if self.model.apply_irf["edisp"]:
-                npred = self.apply_edisp(npred)
+            npred = self.apply_edisp(npred)
 
         return npred
 
@@ -2663,10 +2662,9 @@ class MapEvaluator:
         if self.model.apply_irf["exposure"]:
             npred = self.apply_exposure(npred)
 
-        if self.model.apply_irf["edisp"]:
-            npred = self.apply_edisp(npred)
+        npred = self.apply_edisp(npred)
 
-        if self.model.apply_irf["psf"]:
+        if self.psf:
             npred = self.apply_psf(npred)
 
         return npred

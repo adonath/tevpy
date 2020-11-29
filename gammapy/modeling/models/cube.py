@@ -3,13 +3,13 @@
 import copy
 import numpy as np
 import astropy.units as u
-from gammapy.maps import Map, MapAxis, RegionGeom, WcsGeom
+from gammapy.maps import Map, MapAxis, WcsGeom
 from gammapy.modeling import Covariance, Parameters
 from gammapy.modeling.parameter import _get_parameters_str
 from gammapy.utils.fits import LazyFitsData
 from gammapy.utils.scripts import make_name, make_path
 from .core import Model, Models
-from .spatial import ConstantSpatialModel, SpatialModel
+from .spatial import ConstantSpatialModel, SpatialModel, TemplateSpatialModel
 from .spectral import PowerLawNormSpectralModel, SpectralModel, TemplateSpectralModel
 from .temporal import TemporalModel
 
@@ -67,7 +67,7 @@ class SkyModel(Model):
 
         self.apply_irf = apply_irf
         self.datasets_names = datasets_names
-        self._check_unit()
+        #self._check_unit()
         super().__init__()
 
     @property
@@ -440,6 +440,42 @@ class SkyModel(Model):
             spatial_model=spatial_model,
             temporal_model=temporal_model,
             **kwargs,
+        )
+
+    @classmethod
+    def from_npred_template(cls, npred, spectral_model=None, name=None):
+        """Create npred template.
+        
+
+        Parameters
+        ----------
+        npred : `Map`
+            Npred template map.
+        spectral_model : `NormSpectralModel`
+            Norm spectral model
+        name : str
+            Name of the model.
+
+        Returns
+        -------
+        model : `SkyModel`
+            Npred template model
+
+        """
+        geom = npred.geom
+        data = npred / geom.bin_volume()
+        m = Map.from_geom(data=data.data, geom=geom.as_energy_true, unit=data.unit)
+
+        spatial_model = TemplateSpatialModel(m, normalize=False)
+
+        if spectral_model is None:
+            spectral_model = PowerLawNormSpectralModel()
+
+        return cls(
+            spectral_model=spectral_model,
+            spatial_model=spatial_model,
+            apply_irf={"psf": False, "edisp": False, "exposure": False},
+            name=name
         )
 
 
