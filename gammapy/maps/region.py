@@ -42,7 +42,7 @@ class RegionGeom(Geom):
     _slice_spatial_axes = slice(0, 2)
     _slice_non_spatial_axes = slice(2, None)
     projection = "TAN"
-    binsz = 0.01
+    binsz = 0.02
 
     def __init__(self, region, axes=None, wcs=None):
         self._region = region
@@ -192,11 +192,11 @@ class RegionGeom(Geom):
             contains the region.
 
         Parameters
-         ----------
+        ----------
         width_min : `~astropy.quantity.Quantity`
-        Minimal width for the resulting geometry.
-        Can be a single number or two, for 
-        different minimum widths in each spatial dimension.
+            Minimal width for the resulting geometry.
+            Can be a single number or two, for
+            different minimum widths in each spatial dimension.
 
         Returns
         -------
@@ -204,7 +204,7 @@ class RegionGeom(Geom):
             A WCS geometry object.
         """
         if width_min is not None:
-            width = np.min([self.width.to_value("deg"), _check_width(width_min)], axis=0)
+            width = np.max([self.width.to_value("deg"), _check_width(width_min)], axis=0)
         else:
             width = self.width
         wcs_geom_region = WcsGeom(wcs=self.wcs, npix=self.wcs.array_shape)

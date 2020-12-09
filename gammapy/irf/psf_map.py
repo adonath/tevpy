@@ -135,7 +135,7 @@ class PSFMap(IRFMap):
             exposure=exposure,
         )
 
-    def get_psf_kernel(self, position, geom, max_radius=None, factor=4):
+    def get_psf_kernel(self, position, geom, max_radius=None, factor=1):
         """Returns a PSF kernel at the given position.
 
         The PSF is returned in the form a WcsNDMap defined by the input Geom.
