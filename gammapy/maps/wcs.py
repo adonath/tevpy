@@ -945,6 +945,28 @@ class WcsGeom(Geom):
 
         return Map.from_geom(self, data=mask)
 
+    def region_weights(self, regions, inside=True, oversamling=4):
+        """Compute regions weights
+
+        Parameters
+        ----------
+        regions : list of  `~regions.Region`
+            Python list of regions (pixel or sky regions accepted)
+        inside : bool
+            For ``inside=True``, pixels in the region to True (the default).
+            For ``inside=False``, pixels in the region are False.
+
+        Returns
+        -------
+        map : `~gammapy.maps.WcsNDMap` of boolean type
+            Weights region mask
+
+        """
+        geom = self.upsample(factor=oversamling)
+        m = geom.region_mask(regions=regions, inside=inside)
+        m.data = m.data.astype(float)
+        return m.downsample(factor=oversamling, preserve_counts=False)
+
     def __repr__(self):
         axes = ["lon", "lat"] + [_.name for _ in self.axes]
         lon = self.center_skydir.data.lon.deg
