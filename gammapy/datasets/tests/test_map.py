@@ -1390,4 +1390,4 @@ def test_compute_flux_spatial():
     evaluator = MapEvaluator(model=model[0], exposure=exposure_region, psf=psf)
     flux = evaluator.compute_flux_spatial()
 
-    assert_allclose(flux.value, [0.39677402, 0.39677402], atol=0.001)
+    assert_allclose(flux.value.squeeze(), [0.393469, 0.393469], atol=0.005)

@@ -301,7 +301,8 @@ class MapDataset(Dataset):
                     evaluator.update(self.exposure, self.psf, self.edisp, self._geom)
                     self._evaluators[model.name] = evaluator
                     # setup evaluator
-                    evaluator.compute_npred()
+                    if evaluator.contributes:
+                        evaluator.compute_npred()
 
         self._models = models
 
@@ -421,8 +422,8 @@ class MapDataset(Dataset):
         cls,
         geom,
         geom_exposure,
-        geom_psf,
-        geom_edisp,
+        geom_psf=None,
+        geom_edisp=None,
         reference_time="2000-01-01",
         name=None,
         **kwargs,
@@ -463,7 +464,8 @@ class MapDataset(Dataset):
         else:
             kwargs["edisp"] = EDispMap.from_geom(geom_edisp)
 
-        kwargs["psf"] = PSFMap.from_geom(geom_psf)
+        if geom_psf:
+            kwargs["psf"] = PSFMap.from_geom(geom_psf)
 
         kwargs.setdefault(
             "gti", GTI.create([] * u.s, [] * u.s, reference_time=reference_time)
@@ -1788,8 +1790,8 @@ class MapDatasetOnOff(MapDataset):
         cls,
         geom,
         geom_exposure,
-        geom_psf,
-        geom_edisp,
+        geom_psf=None,
+        geom_edisp=None,
         reference_time="2000-01-01",
         name=None,
         **kwargs,
@@ -1832,7 +1834,9 @@ class MapDatasetOnOff(MapDataset):
         else:
             kwargs["edisp"] = EDispMap.from_geom(geom_edisp)
 
-        kwargs["psf"] = PSFMap.from_geom(geom_psf)
+        if geom_psf:
+            kwargs["psf"] = PSFMap.from_geom(geom_psf)
+
         kwargs["gti"] = GTI.create([] * u.s, [] * u.s, reference_time=reference_time)
         kwargs["mask_safe"] = Map.from_geom(geom, dtype=bool)
 
@@ -2513,7 +2517,7 @@ class MapEvaluator:
             )
 
         # lookup psf
-        if psf:
+        if psf and self.model.spatial_model:
             if self.apply_psf_after_edisp:
                 geom = geom.as_energy_true
             else:
