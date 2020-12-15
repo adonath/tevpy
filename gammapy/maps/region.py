@@ -42,7 +42,7 @@ class RegionGeom(Geom):
     _slice_spatial_axes = slice(0, 2)
     _slice_non_spatial_axes = slice(2, None)
     projection = "TAN"
-    binsz = 0.02
+    binsz = 0.01
 
     def __init__(self, region, axes=None, wcs=None):
         self._region = region
@@ -226,6 +226,19 @@ class RegionGeom(Geom):
         common_coord = self.contains(wcs_geom.get_coord())
         region_coord = wcs_geom.get_coord().apply_mask(common_coord)
         return region_coord
+
+    def get_wcs_weights(self):
+        """Get the array of coordinates that define
+            the region.
+
+        Returns
+        -------
+        weights : `~MapCoord`
+            MapCoord object with the coordinates inside
+            the region.
+        """
+        wcs_geom = self.to_wcs_geom()
+        return wcs_geom.region_weights([self.region])
 
     def to_binsz(self, binsz):
         """Returns self"""
