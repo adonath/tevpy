@@ -945,7 +945,7 @@ class WcsGeom(Geom):
 
         return Map.from_geom(self, data=mask)
 
-    def region_weights(self, regions, inside=True, oversamling=4):
+    def region_weights(self, regions, inside=True, oversampling=4):
         """Compute regions weights
 
         Parameters
@@ -955,6 +955,8 @@ class WcsGeom(Geom):
         inside : bool
             For ``inside=True``, pixels in the region to True (the default).
             For ``inside=False``, pixels in the region are False.
+        oversampling : int
+            Over-sampling factor to compute the region weigths
 
         Returns
         -------
@@ -962,10 +964,10 @@ class WcsGeom(Geom):
             Weights region mask
 
         """
-        geom = self.upsample(factor=oversamling)
+        geom = self.upsample(factor=oversampling)
         m = geom.region_mask(regions=regions, inside=inside)
         m.data = m.data.astype(float)
-        return m.downsample(factor=oversamling, preserve_counts=False)
+        return m.downsample(factor=oversampling, preserve_counts=False)
 
     def __repr__(self):
         axes = ["lon", "lat"] + [_.name for _ in self.axes]
