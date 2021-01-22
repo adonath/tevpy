@@ -1,5 +1,18 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-__all__ = ["load_cta_irfs"]
+import  abc
+from gammapy.utils.scripts import make_path
+from gammapy.maps import RegionNDMap, MapAxis
+from astropy.table import Table
+from astropy.io import fits
+
+
+__all__ = [
+    "load_cta_irfs",
+    "GTPSFMapReader",
+    "GTPSFMapWriter",
+    "GADFIRFMapReader",
+    "GADFIRFMapWriter"
+]
 
 
 IRF_DL3_AXES_SPECIFICATION = {
@@ -95,3 +108,128 @@ def load_cta_irfs(filename):
     psf = EnergyDependentMultiGaussPSF.read(filename, hdu="POINT SPREAD FUNCTION")
 
     return dict(aeff=aeff, bkg=bkg, edisp=edisp, psf=psf)
+
+
+class IRFMapWriter:
+    """"""
+    def __init__(self, filename, overwrite=False):
+        filename = make_path(filename)
+        filename.parent.mkdir(exist_ok=True, parents=True)
+
+        self.filename = filename
+        self.overwrite = overwrite
+
+    @abc.abstractmethod
+    def to_hdulist(self, irf_map):
+        """"""
+        pass
+
+    def write(self, irf_map):
+        """"""
+        hdulist = self.to_hdulist(irf_map)
+        hdulist.writeto(self.filename, overwrite=self.overwrite)
+
+
+class FitsReader:
+    """"""
+    def __init__(self, filename):
+        self.filename = make_path(filename)
+
+    def from_hdulist(self):
+
+    def read(self):
+        pass
+
+class GADFIRFMapWriter(IRFMapWriter):
+    tag = "gadf"
+
+    @staticmethod
+    def to_hdulist(irf_map):
+        """Convert to `~astropy.io.fits.HDUList`.
+
+        Returns
+        -------
+        hdu_list : `~astropy.io.fits.HDUList`
+            HDU list.
+        """
+        hdu = IRF_MAP_HDU_SPECIFICATION[irf_map.tag]
+        hdulist = irf_map._irf_map.to_hdulist(hdu=hdu)
+        exposure_hdu = hdu + "_exposure"
+
+        if irf_map.exposure_map is not None:
+            new_hdulist = irf_map.exposure_map.to_hdulist(hdu=exposure_hdu)
+            hdulist.extend(new_hdulist[1:])
+
+        return hdulist
+
+
+class GadfIRFMapReader:
+    tag = "gadf"
+    pass
+
+
+class GtPSFMapWriter(IRFMapWriter):
+    """PSFMap FITS writer"""
+    tag = "gtpsf"
+
+    @staticmethod
+    def to_hdulist(psf_map):
+        """Convert PSFMap to hdulist
+
+        Parameters
+        ----------
+        psf_map : `PSFMap`
+            PSF map
+
+        Returns
+        -------
+        hdulist : `~astropy.io.fits.HDUList`
+            HDU list
+        """
+        psf, exposure = psf_map.psf_map, psf_map.exposure_map
+
+        theta_hdu = psf.geom.axes["rad"].to_table_hdu(format="gtpsf")
+        psf_table = psf.geom.axes["energy_true"].to_table(format="gtpsf")
+
+        psf_table["Exposure"] = exposure.quantity.to("cm^2 s")
+        psf_table["Psf"] = psf.quantity.to("sr^-1")
+        psf_hdu = fits.BinTableHDU(data=psf_table, name="PSF")
+        return fits.HDUList([fits.PrimaryHDU(), theta_hdu, psf_hdu])
+
+
+class GtPSFMapFitsReader:
+    """Read PSFMap in gtpsf format"""
+    tag = "gtpsf"
+
+    @staticmethod
+    def from_hdulist(hdulist):
+        """Create `EnergyDependentTablePSF` from ``gtpsf`` format HDU list.
+
+        Parameters
+        ----------
+        hdulist : `~astropy.io.fits.HDUList`
+            HDU list with ``THETA`` and ``PSF`` extensions.
+
+        Returns
+        -------
+        psf_map : `PSFMap`
+            PSF map
+        """
+        from .psf import PSFMap
+        rad_axis = MapAxis.from_table_hdu(hdulist["THETA"], format="gtpsf")
+
+        table = Table.read(hdulist["PSF"])
+        energy_axis_true = MapAxis.from_table(table, format="gtpsf")
+
+        # TODO: it would be good to know the position the PSF was created for
+        psf_map = RegionNDMap.create(region=None, axes=[rad_axis, energy_axis_true], unit="sr-1")
+        psf_map.data = table["Psf"].data
+
+        exposure_map = RegionNDMap.create(region=None, axes=[energy_axis_true], unit="cm2 s")
+        exposure_map.data = table["Exposure"].data
+        return PSFMap(psf_map=psf_map, exposure_map=exposure_map)
+
+    def read(self):
+        """Read PSFMap in gtpsf format"""
+        hdulist = fits.open(self.filename)
+        return self.from_hdulist(hdulist)

@@ -26,3 +26,19 @@ IRF_REGISTRY = Registry(
         EDispKernelMap,
     ]
 )
+
+
+IRF_MAP_READER = Registry(
+    [
+        GTPSFMapReader,
+        GADFIRFMapReader
+    ]
+)
+
+
+IRF_MAP_WRITER = Registry(
+    [
+        GTPSFMapWriter,
+        GADFIRFMapWriter
+    ]
+)
